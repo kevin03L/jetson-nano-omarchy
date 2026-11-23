@@ -43,6 +43,10 @@ Fait :
 3. PowerShell **administrateur** : `usbipd list`, `usbipd bind --busid <BUSID>`, `usbipd attach --wsl --busid <BUSID> --auto-attach`.
 
 ## Phase 1 : Arch Linux ARM sur le kernel mainline (sans CUDA)
+**État au 2026-11-23 : fait.** ALARM 7.1.6 démarre depuis l'eMMC jusqu'au login (console série OK, Ethernet 1 Gb/s).
+- Corrigé en route : un initramfs est obligatoire (`i2c-tegra` est un module, et le PMIC qui alimente l'eMMC est derrière) ; la QSPI est désactivée dans le DTS.
+- Reste à faire : PWM (régulateur GPU, ventilateur), affichage (`Cannot find any crtc`), RAM à 204 MHz, déploiement du DTB sans QSPI sur la carte (copie dans `/boot/mainline/j202.dtb` via SSH).
+
 - Dans WSL : `cd /mnt/c/Users/Lerou/Documents/jetson/jetson-nano-omarchy && sudo LOG=/mnt/c/Users/Lerou/Documents/jetson/wsl-live.log bash scripts/flash-j202-emmc.sh`
 - Résultat : le bootloader NVIDIA R32.7.6 d'origine dans l'eMMC. `mmcblk0p1` contient Arch avec le kernel mainline d'ALARM (`/boot/mainline/Image`) et le DTB J202, sans initramfs : sdhci-tegra, ext4, pcie-tegra et nvme sont intégrés au kernel ALARM.
 - Au premier boot, vérifier : la console série, le SSH (`alarm`/`alarm` ; changer aussi `root`/`root`), l'Ethernet, `lsblk` (eMMC = mmcblk0) et `lspci` (SSD).
