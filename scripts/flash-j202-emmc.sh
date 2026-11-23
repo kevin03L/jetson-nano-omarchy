@@ -31,7 +31,8 @@
 # Options:
 #   --prepare-only   build the Linux_for_Tegra tree and rootfs, do not flash
 #   --flash-only     flash an already prepared tree
-# Environment: WORK (default /var/tmp/j202-flash), LOG (default: none)
+# Environment: WORK (default /var/tmp/j202-flash), LOG (default: none),
+#              SSH_PUBKEY (public key to preinstall for the alarm user)
 set -euo pipefail
 
 L4T_URL=https://developer.download.nvidia.com/embedded/L4T/r32_Release_v7.6/T210/Jetson-210_Linux_R32.7.6_aarch64.tbz2
@@ -165,6 +166,14 @@ EOF
       ln -sf "/usr/lib/systemd/system/$unit" "$R/etc/systemd/system/multi-user.target.wants/$unit"
     fi
   done
+  # Optional: SSH_PUBKEY=/path/key.pub preinstalls a key for the alarm user (uid 1000),
+  # so the board can be reached over SSH without ever typing a password.
+  if [[ -n ${SSH_PUBKEY:-} ]]; then
+    [[ -f $SSH_PUBKEY ]] || die "SSH_PUBKEY introuvable : $SSH_PUBKEY"
+    install -d -m 0700 -o 1000 -g 1000 "$R/home/alarm/.ssh"
+    install -m 0600 -o 1000 -g 1000 "$SSH_PUBKEY" "$R/home/alarm/.ssh/authorized_keys"
+    say "clé SSH installée pour alarm : $(cut -d' ' -f3 "$SSH_PUBKEY")"
+  fi
   if ! ls "$R"/usr/lib/firmware/nvidia/tegra210/xusb.bin* >/dev/null 2>&1; then
     say "ATTENTION : firmware nvidia/tegra210/xusb.bin absent : USB 3 inactif au 1er boot (Ethernet OK)"
   fi
