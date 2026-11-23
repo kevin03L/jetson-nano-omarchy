@@ -166,13 +166,21 @@ EOF
       ln -sf "/usr/lib/systemd/system/$unit" "$R/etc/systemd/system/multi-user.target.wants/$unit"
     fi
   done
-  # Optional: SSH_PUBKEY=/path/key.pub preinstalls a key for the alarm user (uid 1000),
-  # so the board can be reached over SSH without ever typing a password.
+  # Optional: SSH_PUBKEY=/path/key.pub preinstalls a key for alarm (uid 1000) and
+  # root, and makes sshd key-only, so the board is reachable over SSH without ever
+  # typing a password and ALARM's public default passwords (alarm/alarm,
+  # root/root) cannot be used over the network. They still work on the serial
+  # console.
   if [[ -n ${SSH_PUBKEY:-} ]]; then
     [[ -f $SSH_PUBKEY ]] || die "SSH_PUBKEY introuvable : $SSH_PUBKEY"
     install -d -m 0700 -o 1000 -g 1000 "$R/home/alarm/.ssh"
     install -m 0600 -o 1000 -g 1000 "$SSH_PUBKEY" "$R/home/alarm/.ssh/authorized_keys"
-    say "clé SSH installée pour alarm : $(cut -d' ' -f3 "$SSH_PUBKEY")"
+    install -d -m 0700 "$R/root/.ssh"
+    install -m 0600 "$SSH_PUBKEY" "$R/root/.ssh/authorized_keys"
+    install -d "$R/etc/ssh/sshd_config.d"
+    printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' \
+      > "$R/etc/ssh/sshd_config.d/10-key-only.conf"
+    say "clé SSH installée pour alarm et root, SSH par clé uniquement : $(cut -d' ' -f3 "$SSH_PUBKEY")"
   fi
   if ! ls "$R"/usr/lib/firmware/nvidia/tegra210/xusb.bin* >/dev/null 2>&1; then
     say "ATTENTION : firmware nvidia/tegra210/xusb.bin absent : USB 3 inactif au 1er boot (Ethernet OK)"
