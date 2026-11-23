@@ -22,7 +22,10 @@
  * own RTL8111 Ethernet; pci@1,0 reaches the J202's M.2 Key M at x1), HDMI
  * (sor1), DP (sor0 + dpaux), XUSB, PMIC, thermal.
  *
- * Status: written from public sources, not booted yet.
+ *  4. QSPI (spi@70410000): no NOR flash on the eMMC module; disabled.
+ *
+ * Status: boots ALARM 7.1.6 to a login prompt from the eMMC (2026-11-23),
+ * Ethernet up at 1 Gb/s. Open: PWM (GPU regulator, fan), display.
  */
 
 #include "tegra210-p3450-0000.dts"
@@ -49,6 +52,15 @@
 
 	/* Key E SDIO: not routed for a Nano module on the J202 */
 	mmc@700b0400 {
+		status = "disabled";
+	};
+
+	/*
+	 * QSPI NOR: the SD-card module boots from it, the eMMC module has none.
+	 * Left enabled, spi-tegra210-quad times out and spi-nor fails with -5
+	 * (seen on the first boot, 2026-11-23).
+	 */
+	spi@70410000 {
 		status = "disabled";
 	};
 };

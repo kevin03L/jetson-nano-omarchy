@@ -10,11 +10,14 @@
 #   APP (mmcblk0p1, ext4)               : Arch Linux ARM aarch64 rootfs
 #     /boot/mainline/Image              : ALARM's linux-aarch64 kernel (mainline)
 #     /boot/mainline/j202.dtb           : images/mainline-kernel/j202/tegra210-p3448-0002-j202.dtb
-#     /boot/extlinux/extlinux.conf      : boots the two files above, no initramfs
+#     /boot/mainline/initramfs.img      : minimal initramfs (i2c-tegra, sdhci-tegra)
+#     /boot/extlinux/extlinux.conf      : boots the three files above
 # flash.sh also drops NVIDIA's own 4.9 Image/initrd/DTB into /boot; they are unused.
 #
-# No initramfs: ALARM's kernel has sdhci-tegra, ext4, pcie-tegra and nvme built in,
-# and the J202 DTB pins mmc0 to the eMMC, so root=/dev/mmcblk0p1 is stable.
+# A small initramfs is required: ALARM builds i2c-tegra as a module, and the
+# MAX77620 PMIC behind it powers the eMMC (first boot without one hung at
+# "Waiting for root device"). The J202 DTB pins mmc0 to the eMMC, so
+# root=/dev/mmcblk0p1 is stable.
 #
 # Before running:
 #   1. Board off, jumper FC REC to GND on the J202, power on (recovery mode).
@@ -38,10 +41,11 @@ WORK=${WORK:-/var/tmp/j202-flash}
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DTB_SRC=$REPO/images/mainline-kernel/j202/tegra210-p3448-0002-j202.dtb
 
-PREPARE=1 FLASH=1
+PREPARE=1 FLASH=1 APP_ONLY=0
 case ${1:-} in
   --prepare-only) FLASH=0 ;;
   --flash-only) PREPARE=0 ;;
+  --app-only) APP_ONLY=1 ;;   # rebuild the rootfs, rewrite only mmcblk0p1 (bootloader untouched)
   "") ;;
   *) echo "unknown option: $1" >&2; exit 2 ;;
 esac
@@ -66,8 +70,41 @@ need_pkgs() {
   fi
 }
 
+# The PMIC (MAX77620) that powers the eMMC sits behind i2c-tegra, which ALARM
+# builds as a module: without an initramfs the eMMC never probes. Build a small
+# one (no autodetect, so it does not depend on the build host) in an aarch64
+# chroot through qemu-user-static. Kept small because L4T U-Boot places the
+# initrd only ~14 MiB away from the kernel.
+build_initramfs() {
+  local R=$1 kver=$2
+  say "génération de l'initramfs J202 (chroot aarch64 via qemu)"
+  [[ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]] || update-binfmts --enable qemu-aarch64 || true
+  [[ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]] || die "émulation aarch64 (binfmt qemu-aarch64) indisponible"
+  cat > "$R/etc/mkinitcpio-j202.conf" <<'EOF'
+# reComputer J1020 v2: i2c-tegra reaches the MAX77620 PMIC that powers the eMMC.
+MODULES=(i2c-tegra sdhci-tegra)
+BINARIES=()
+FILES=()
+# No block/filesystems/fsck hooks: without autodetect they pull every storage
+# driver (20 MiB), and ext4, sdhci-tegra, pcie-tegra and nvme are built in.
+HOOKS=(base udev modconf)
+COMPRESSION="zstd"
+COMPRESSION_OPTIONS=(-19)
+EOF
+  local m
+  for m in proc sys dev; do mount --bind "/$m" "$R/$m"; done
+  # shellcheck disable=SC2064
+  trap "umount -l '$R/proc' '$R/sys' '$R/dev' 2>/dev/null || true" EXIT
+  chroot "$R" /usr/bin/mkinitcpio -c /etc/mkinitcpio-j202.conf -k "$kver" -g /boot/mainline/initramfs.img
+  umount -l "$R/proc" "$R/sys" "$R/dev"; trap - EXIT
+  local size
+  size=$(stat -c %s "$R/boot/mainline/initramfs.img")
+  say "initramfs : $((size / 1024)) Kio"
+  ((size < 12 * 1024 * 1024)) || die "initramfs trop gros pour U-Boot ($size octets)"
+}
+
 prepare() {
-  need_pkgs curl bzip2 libarchive-tools python3 python-is-python3 binutils cpio \
+  need_pkgs qemu-user-static binfmt-support curl bzip2 libarchive-tools python3 python-is-python3 binutils cpio \
             libxml2-utils usbutils device-tree-compiler xxd
   mkdir -p "$CACHE"
 
@@ -101,6 +138,8 @@ prepare() {
   fdtget "$R/boot/mainline/j202.dtb" /mmc@700b0600 status | grep -qx okay \
     || die "le DTB n'active pas l'eMMC"
 
+  build_initramfs "$R" "$kver"
+
   say "écriture de /boot/extlinux/extlinux.conf"
   install -d "$R/boot/extlinux"
   cat > "$R/boot/extlinux/extlinux.conf" <<EOF
@@ -112,6 +151,7 @@ MENU TITLE reComputer J1020 v2 boot
 LABEL mainline
       MENU LABEL Arch Linux ARM, mainline $kver, J202 DTB
       LINUX /boot/mainline/Image
+      INITRD /boot/mainline/initramfs.img
       FDT /boot/mainline/j202.dtb
       APPEND root=/dev/mmcblk0p1 rw rootwait rootfstype=ext4 console=ttyS0,115200n8 console=tty0 loglevel=7
 EOF
@@ -144,7 +184,11 @@ flash() {
   lsusb -d 0955:7f21
   say "FLASH de l'eMMC entière ($BOARD, rootfs sur mmcblk0p1) : environ 10 à 20 min"
   cd "$LDK"
-  ./flash.sh "$BOARD" mmcblk0p1
+  if ((APP_ONLY)); then
+    ./flash.sh -k APP "$BOARD" mmcblk0p1
+  else
+    ./flash.sh "$BOARD" mmcblk0p1
+  fi
   say "terminé. Retirer le cavalier FC REC, redémarrer, et suivre la console série (115200 8N1)."
   cat <<EOF
 Premier démarrage :
