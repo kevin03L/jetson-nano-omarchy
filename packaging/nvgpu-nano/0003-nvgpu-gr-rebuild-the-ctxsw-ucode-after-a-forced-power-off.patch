@@ -1,0 +1,62 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] nvgpu: gr: rebuild the ctxsw ucode after a forced power-off
+
+Writing 0 to /dev/nvgpu/igpu0/power powers the GPU off and frees the gr state, including the gr
+falcon with the surface and instance block GPCCS is loaded from. At the next power-on the ACR
+blob is still there, so nvgpu_acr_prepare_ucode_blob_v0() returns early and nobody makes the
+surface again:
+
+  Unable to handle kernel NULL pointer dereference at virtual address 0000000000000010
+   nvgpu_mem_get_addr <- nvgpu_inst_block_addr <- nvgpu_gr_falcon_load_gpccs_with_bootloader
+
+Make it there when it is missing, and free it with the gr falcon instead of leaking it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c b/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
+index a08c8db..4cb54db 100644
+--- a/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
++++ b/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
+@@ -740,8 +740,12 @@ int nvgpu_acr_prepare_ucode_blob_v0(struct gk20a *g)
+ 	struct nvgpu_gr_falcon *gr_falcon = nvgpu_gr_get_falcon_ptr(g);
+ 
+ 	if (g->acr->ucode_blob.cpu_va != NULL) {
+-		/* Recovery case, we do not need to form non WPR blob */
+-		return err;
++		/*
++		 * Recovery case, we do not need to form non WPR blob. But a
++		 * forced power-off frees the gr falcon state, and with it the
++		 * ctxsw ucode GPCCS is loaded from: make it again.
++		 */
++		return nvgpu_gr_falcon_init_ctxsw_ucode(g, gr_falcon);
+ 	}
+ 	plsfm = &lsfm_l;
+ 	(void) memset((void *)plsfm, 0, sizeof(struct ls_flcn_mgr_v0));
+diff --git a/drivers/gpu/nvgpu/common/gr/gr_falcon.c b/drivers/gpu/nvgpu/common/gr/gr_falcon.c
+index 7ecb578..c715b1e 100644
+--- a/drivers/gpu/nvgpu/common/gr/gr_falcon.c
++++ b/drivers/gpu/nvgpu/common/gr/gr_falcon.c
+@@ -78,6 +78,11 @@ void nvgpu_gr_falcon_remove_support(struct gk20a *g,
+ 	if (falcon == NULL) {
+ 		return;
+ 	}
++	if (nvgpu_mem_is_valid(&falcon->ctxsw_ucode_info.surface_desc)) {
++		nvgpu_dma_unmap_free(g->mm.pmu.vm,
++			&falcon->ctxsw_ucode_info.surface_desc);
++	}
++	nvgpu_free_inst_block(g, &falcon->ctxsw_ucode_info.inst_blk_desc);
+ 	nvgpu_kfree(g, falcon);
+ }
+ 
+@@ -311,6 +316,11 @@ int nvgpu_gr_falcon_init_ctxsw_ucode(struct gk20a *g,
+ 	const char *fw_name = NULL;
+ 	int err = 0;
+ 
++	if (nvgpu_mem_is_valid(&ucode_info->inst_blk_desc)) {
++		/* kept across a normal power-off */
++		return 0;
++	}
++
+ 	nvgpu_log(g, gpu_dbg_gr, "Requst and copy FECS/GPCCS firmwares");
+ 
+ 	g->ops.gr.falcon.get_fw_name(g, &fw_name, FALCON_ID_FECS);

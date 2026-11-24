@@ -100,6 +100,11 @@ stage_3() {
     # /boot is on the eMMC and the root on the NVMe: an eMMC that does not answer must not stop the
     # boot in emergency mode, without network (jetson-nano-boot-check reports it at kernel updates)
     sed -E -i.pre-nofail '\#^[^\#[:space:]]+[[:space:]]+/(mnt/emmc|boot)[[:space:]]# { /nofail/! s/^([^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+)([^[:space:]]+)/\1\2,nofail/ }' /etc/fstab
+    # the J202 feeds the module from a 5 V / 8 A converter (12 V / 5 A adapter): full-speed profile
+    if [[ ! -e /etc/jetson-nano/power.conf ]]; then
+      install -d -m 755 /etc/jetson-nano
+      echo 'SUPPLY_W=20' > /etc/jetson-nano/power.conf
+    fi
     printf 'J202: extlinux.conf left as is (entries written by hand, see docs/j202-plan.md)\n'
     grep -E '^(DEFAULT|LABEL)' "$extlinux"
     return 0
@@ -272,6 +277,7 @@ stage_9() {
   local tmp
   printf 'stage 9: user desktop config\n'
   install_file etc/systemd/user/bt-agent.service.d/10-kill-signal.conf 0644
+  install_file etc/systemd/sleep.conf.d/10-jetson-nano-no-suspend.conf 0644
   if [[ ! -e "$monitors" ]]; then
     as_user bash -c 'cp -af /etc/skel/. ~/'
   fi

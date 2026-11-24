@@ -1,0 +1,157 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] nvgpu: gm20b: power the GPU rail as L4T does
+
+The mainline power sequence left out steps of NVIDIA's:
+
+ - the fuse clock. The GPU reads its fuses when its rail comes up; on mainline the fuse driver
+   turns that clock off when idle. With the rail really off for 20 ms and the clock off, the GPU
+   never comes back (registers read 0xbad00100, the GPC PLL does not lock); with the clock on it
+   does, 820 times in a row. At boot it depended on who had left the clock on: a likely cause of
+   the FECS firmware that now and then did not answer (0002).
+ - blocking and flushing the GPU's memory accesses, the clamp and the reset before the rail goes
+   down, and the flush after power-up. Without them: "gpusrd: EMEM address decode error", "priv
+   ring enumeration failed", and a hung memory system (the HDMI audio driver times out, then
+   everything).
+
+Measured on a reComputer J1020 v2 with power cycles through /dev/nvgpu/igpu0/power, four CPU cores
+busy: before, the board hung within a few hundred cycles; with all of it, 3000 cycles with the rail
+off for 5 ms, no failure (five "pmu exterr" messages, GPU fine).
+
+Also release the static powergate lock when an early power-on step fails: railgating the GPU then
+waited for it for ever.
+
+The fuse clock and the "mc" reset come from the device tree and are optional; the clamp needs
+linux-nano's 0106.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/drivers/gpu/nvgpu/common/init/nvgpu_init.c b/drivers/gpu/nvgpu/common/init/nvgpu_init.c
+index 5f2435c..b99827d 100644
+--- a/drivers/gpu/nvgpu/common/init/nvgpu_init.c
++++ b/drivers/gpu/nvgpu/common/init/nvgpu_init.c
+@@ -864,6 +864,12 @@ static int nvgpu_early_init(struct gk20a *g)
+ 	}
+ 
+ done:
++#ifdef CONFIG_NVGPU_STATIC_POWERGATE
++	/* a failed power-on railgates the GPU, which takes this lock */
++	if ((err != 0) && have_static_pg_lock) {
++		(void) nvgpu_init_release_static_pg_lock(g);
++	}
++#endif
+ 	return err;
+ }
+ 
+diff --git a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
+index fca3f9d..4de6b68 100644
+--- a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
++++ b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
+@@ -87,7 +87,11 @@ struct gm20b_mainline_power {
+ 	struct clk *gpu;
+ 	struct clk *ref;
+ 	struct clk *pwr;
++	/* fuse clock (optional): the GPU reads its fuses at power-up */
++	struct clk *fuse;
+ 	struct reset_control *rst;
++	/* memory controller: block and flush the GPU's accesses (optional) */
++	struct reset_control *mc_rst;
+ 	struct tegra_pmc *pmc;
+ 	bool on;
+ 
+@@ -777,6 +781,26 @@ static int gm20b_tegra_railgate(struct device *dev)
+ 	if (!power->on)
+ 		return 0;
+ 
++	/*
++	 * As L4T: block the GPU's memory accesses and wait for those in flight,
++	 * clamp the partition and hold the GPU in reset before the rail goes
++	 * down. Otherwise the memory controller is left with half a
++	 * transaction: "gpusrd: EMEM address decode error" at the next
++	 * power-up, a GPU that does not start, or a hung memory system.
++	 */
++	ret = reset_control_assert(power->mc_rst);
++	if (ret)
++		nvgpu_warn(g, "failed to flush gpu memory accesses: %d", ret);
++	udelay(10);
++	ret = tegra_pmc_powergate_gpu_clamp(power->pmc);
++	if (ret)
++		nvgpu_warn(g, "failed to clamp the gpu: %d", ret);
++	udelay(10);
++	ret = reset_control_assert(power->rst);
++	if (ret)
++		nvgpu_warn(g, "failed to assert gpu reset: %d", ret);
++	udelay(10);
++	clk_disable_unprepare(power->fuse);
+ 	clk_disable_unprepare(power->pwr);
+ 	clk_disable_unprepare(power->ref);
+ 	clk_disable_unprepare(power->gpu);
+@@ -819,6 +843,11 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+ 		nvgpu_err(g, "failed to enable pwr clock: %d", ret);
+ 		goto err_clk_pwr;
+ 	}
++	ret = clk_prepare_enable(power->fuse);
++	if (ret) {
++		nvgpu_err(g, "failed to enable fuse clock: %d", ret);
++		goto err_clk_fuse;
++	}
+ 	ret = clk_set_rate(power->pwr, 204000000);
+ 	if (ret)
+ 		nvgpu_warn(g, "pwr clock not set to 204 MHz: %d", ret);
+@@ -841,6 +870,20 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+ 		nvgpu_err(g, "failed to deassert gpu reset: %d", ret);
+ 		goto err_reset_deassert;
+ 	}
++	/*
++	 * As L4T, flush the memory controller after boot, railgate and suspend
++	 * before the GPU may use it.
++	 */
++	udelay(10);
++	ret = reset_control_assert(power->mc_rst);
++	if (ret)
++		nvgpu_warn(g, "failed to flush gpu memory accesses: %d", ret);
++	udelay(10);
++	ret = reset_control_deassert(power->mc_rst);
++	if (ret) {
++		nvgpu_err(g, "failed to unblock gpu memory accesses: %d", ret);
++		goto err_reset_deassert;
++	}
+ 	udelay(10);
+ 	power->on = true;
+ 	return 0;
+@@ -848,6 +891,8 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+ err_reset_deassert:
+ err_clamp:
+ err_reset_assert:
++	clk_disable_unprepare(power->fuse);
++err_clk_fuse:
+ 	clk_disable_unprepare(power->pwr);
+ err_clk_pwr:
+ 	clk_disable_unprepare(power->ref);
+@@ -1334,6 +1379,12 @@ static int gk20a_tegra_probe(struct device *dev)
+ 		nvgpu_err(g, "failed to get pwr clock: %d", ret);
+ 		return ret;
+ 	}
++	power->fuse = devm_clk_get_optional(dev, "fuse");
++	if (IS_ERR(power->fuse)) {
++		ret = PTR_ERR(power->fuse);
++		nvgpu_err(g, "failed to get fuse clock: %d", ret);
++		return ret;
++	}
+ 	power->rst = devm_reset_control_get(dev, "gpu");
+ 	if (IS_ERR(power->rst)) {
+ 		ret = PTR_ERR(power->rst);
+@@ -1341,6 +1392,14 @@ static int gk20a_tegra_probe(struct device *dev)
+ 		return ret;
+ 	}
+ #ifdef CONFIG_RESET_CONTROLLER
++	power->mc_rst = devm_reset_control_get_optional(dev, "mc");
++	if (IS_ERR(power->mc_rst)) {
++		ret = PTR_ERR(power->mc_rst);
++		power->mc_rst = NULL;
++		if (ret == -EPROBE_DEFER)
++			return ret;
++		nvgpu_warn(g, "no memory controller reset: %d", ret);
++	}
+ 	platform->reset_control = power->rst;
+ #endif
+ 	power->pmc = devm_tegra_pmc_get(dev);

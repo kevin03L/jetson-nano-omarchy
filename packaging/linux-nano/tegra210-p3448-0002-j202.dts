@@ -64,10 +64,28 @@
 		status = "okay";
 		bus-width = <8>;
 		non-removable;
-		/* HS400 fails now and then (recovery error -110, no /boot): HS200 is enough */
+		/* HS200 is enough for the boot files */
 		no-mmc-hs400;
+		/*
+		 * tegra210.dtsi sets this controller's clock (SDMMC4 from PLL_C4)
+		 * from mmc@700b0000, the microSD slot. Both probe at the same time:
+		 * when the eMMC is already running, its clock jumps and commands
+		 * time out (-110; no /boot, emergency mode). Set it here instead.
+		 */
+		assigned-clocks = <&tegra_car TEGRA210_CLK_SDMMC4>,
+				  <&tegra_car TEGRA210_CLK_PLL_C4_OUT0>,
+				  <&tegra_car TEGRA210_CLK_PLL_C4>;
+		assigned-clock-parents = <&tegra_car TEGRA210_CLK_PLL_C4_OUT0>;
+		assigned-clock-rates = <200000000>, <1000000000>, <1000000000>;
 		vqmmc-supply = <&vdd_1v8>;
 		vmmc-supply = <&vdd_3v3_sys>;
+	};
+
+	/* microSD slot: not the eMMC's clock (see mmc@700b0600) */
+	mmc@700b0000 {
+		/delete-property/ assigned-clocks;
+		/delete-property/ assigned-clock-parents;
+		/delete-property/ assigned-clock-rates;
 	};
 
 	/* Key E SDIO: not routed for a Nano module on the J202 */
@@ -82,6 +100,22 @@
 	 */
 	spi@70410000 {
 		status = "disabled";
+	};
+
+	/*
+	 * The GPU reads its fuses when its rail comes up: without the fuse clock
+	 * it starts wrong (registers read 0xbad00100) or at random, depending on
+	 * who left that clock on. The memory controller reset lets the driver
+	 * block and flush the GPU's accesses before the rail goes down.
+	 */
+	gpu@57000000 {
+		clocks = <&tegra_car TEGRA210_CLK_GPU>,
+			 <&tegra_car TEGRA210_CLK_PLL_P_OUT5>,
+			 <&tegra_car TEGRA210_CLK_PLL_G_REF>,
+			 <&tegra_car TEGRA210_CLK_FUSE>;
+		clock-names = "gpu", "pwr", "ref", "fuse";
+		resets = <&tegra_car 184>, <&mc TEGRA210_MC_RESET_GPU>;
+		reset-names = "gpu", "mc";
 	};
 
 	/*

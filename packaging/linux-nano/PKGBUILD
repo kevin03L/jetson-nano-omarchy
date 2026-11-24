@@ -3,7 +3,7 @@
 # (0102) so the display accepts NVIDIA's canonical block-linear modifiers, and an xhci-tegra fix
 # (0103) so a reboot no longer faults (SError) in the USB controller's mailbox interrupt, and two
 # fixes for errors logged at every boot: the AGIC's smp_processor_id() (0104) and a Bluetooth
-# query that older Intel controllers refuse (0105).
+# query that older Intel controllers refuse (0105). 0106 lets nvgpu-nano clamp the GPU rail.
 # Fork kevin03L/jetson-nano-omarchy (branch j202): also builds the reComputer J1020 v2 device tree
 # (tegra210-p3448-0002-j202.dtb). scripts/cross-build-linux-nano.sh builds this PKGBUILD on x86.
 #
@@ -37,6 +37,7 @@ source=("https://www.kernel.org/pub/linux/kernel/v7.x/${_srcname}.tar.xz"
         '0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch'
         '0104-irqchip-gic-read-the-CPU-number-for-the-primary-GIC-only.patch'
         '0105-Bluetooth-btintel-debug-features-are-optional.patch'
+        '0106-soc-tegra-pmc-let-the-GPU-driver-clamp-the-GPU-rail.patch'
         'config'
         'config.nano'
         'linux.preset'
@@ -53,10 +54,11 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          '37d3e6d21af6483ebaaeba00c0fd60a7'
          'b768f37f7f352bb8728ee89295de2697'
          '85a05702e52fc6f4229cd15a5a20e7e8'
+         '06139e93b130e5eff2de8481a5c65e2f'
          'cf663e64ec5f265ab09615e5f70c4e64'
-         '8f82a012ff767eef47ac7b05602d306f'
+         'f2a7d622abbaf32b53f7b1135e62e364'
          '4a2ba66081ce525b807d7eaffbc5fa75'
-         '8175198c02e0e1e345751b44cd2ddd16')
+         'bf847254c7fcae5f63820c5da26da602')
 
 prepare() {
   cd $_srcname
@@ -83,6 +85,7 @@ prepare() {
   git apply ../0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch
   git apply ../0104-irqchip-gic-read-the-CPU-number-for-the-primary-GIC-only.patch
   git apply ../0105-Bluetooth-btintel-debug-features-are-optional.patch
+  git apply ../0106-soc-tegra-pmc-let-the-GPU-driver-clamp-the-GPU-rail.patch
 
   # reComputer J1020 v2 (eMMC module on the Seeed J202): mainline only has the SD-card module
   # (p3450). Same file as images/mainline-kernel/j202/, built with the other Tegra210 dtbs.

@@ -1,0 +1,63 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] soc/tegra: pmc: let the GPU driver clamp the GPU rail
+
+The GPU's clamp can be removed (tegra_pmc_powergate_remove_clamping()) but not set again. NVIDIA's
+L4T clamps the GPU before it turns the GPU rail off; without it the memory controller sees the
+unpowered GPU's outputs, and memory errors or a hung board can follow the next power-up.
+nvgpu-nano uses this.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/soc/tegra/pmc.c	2026-11-24 17:14:00.931082657 +0100
++++ b/drivers/soc/tegra/pmc.c	2026-11-24 17:14:00.987081471 +0100
+@@ -1109,6 +1109,27 @@
+ EXPORT_SYMBOL(tegra_pmc_powergate_remove_clamping);
+ 
+ /**
++ * tegra_pmc_powergate_gpu_clamp() - clamp the GPU partition
++ * @pmc: power management controller
++ *
++ * The GPU has its own power rail: isolate it before the rail is turned off.
++ * tegra_pmc_powergate_remove_clamping() removes the clamp again.
++ */
++int tegra_pmc_powergate_gpu_clamp(struct tegra_pmc *pmc)
++{
++	if (!pmc->soc->has_gpu_clamps)
++		return -EINVAL;
++
++	mutex_lock(&pmc->powergates_lock);
++	tegra_pmc_writel(pmc, 1, GPU_RG_CNTRL);
++	tegra_pmc_readl(pmc, GPU_RG_CNTRL);
++	mutex_unlock(&pmc->powergates_lock);
++
++	return 0;
++}
++EXPORT_SYMBOL(tegra_pmc_powergate_gpu_clamp);
++
++/**
+  * tegra_pmc_powergate_sequence_power_up() - power up partition
+  * @pmc: power management controller
+  * @id: partition ID
+--- a/include/soc/tegra/pmc.h	2026-11-24 17:14:00.935082571 +0100
++++ b/include/soc/tegra/pmc.h	2026-11-24 17:14:00.987081471 +0100
+@@ -151,6 +151,7 @@
+ int tegra_pmc_powergate_power_on(struct tegra_pmc *pmc, unsigned int id);
+ int tegra_pmc_powergate_power_off(struct tegra_pmc *pmc, unsigned int id);
+ int tegra_pmc_powergate_remove_clamping(struct tegra_pmc *pmc, unsigned int id);
++int tegra_pmc_powergate_gpu_clamp(struct tegra_pmc *pmc);
+ 
+ /* Must be called with clk disabled, and returns with clk enabled */
+ int tegra_pmc_powergate_sequence_power_up(struct tegra_pmc *pmc,
+@@ -182,6 +183,12 @@
+ {
+ 	return -ENOSYS;
+ }
++
++static inline int
++tegra_pmc_powergate_gpu_clamp(struct tegra_pmc *pmc)
++{
++	return -ENOSYS;
++}
+ 
+ /* Must be called with clk disabled, and returns with clk enabled */
+ static inline int

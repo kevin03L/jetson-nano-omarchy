@@ -95,6 +95,8 @@ Fait :
   L'extinction volontaire du GPU (`echo 0 > /dev/nvgpu/igpu0/power`) plante le pilote : pas corrigé, pas utilisé.
 - eMMC muette au démarrage (1 fois sur une dizaine) : HS400 échoue (`mmc_hs400_to_hs200 failed, error -110`), `/boot` non monté, mode
   secours sans réseau. Correctifs : `no-mmc-hs400` dans le DTS, `nofail` sur `/mnt/emmc` et `/boot`. Pas encore démarrés.
-- Ethernet 100 Mb/s : le partenaire n'annonce pas le gigabit, et en 1000 seul la liaison ne monte pas (EEE, maître/esclave sans effet).
-  La carte a déjà eu 1 Gb/s une fois (7.1.6) : câble, prise ou port à vérifier.
+- Ethernet 100 Mb/s (registres du PHY, 2026-11-24) : firmware `rtl8168f-2` chargé ; les deux côtés annoncent bien 1000FD, l'apprentissage
+  gigabit échoue en 1,3 s (`rxloc`/`rxrem` à 0 ne prouvent rien : ils le sont aussi avec un lien à 1 Gb/s), 3 essais, puis repli à 100. Pareil sans EEE, en maître ou esclave forcé ;
+  routeur forcé à 1 Gb/s : plus de lien. La négociation n'utilise que 2 paires, le gigabit les 4 : paires 4-5 ou 7-8 (câble, prise, port).
+  Même câble, autre port de la box : 1 Gb/s aussitôt (84 Mo/s par SSH). Port de la box ou contact à cet endroit.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
