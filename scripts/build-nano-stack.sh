@@ -100,6 +100,12 @@ build_one() {
       [[ -f /var/cache/pacman/pkg/$f ]] || die "$dir: $f is not in /var/cache/pacman/pkg (or the repositories)"
       install -o "$BUILD_USER" -m 644 "/var/cache/pacman/pkg/$f" "$w/$f"
     done
+    # makepkg looks for local sources by base name, next to the PKGBUILD (nanoblas has them in
+    # include/, src/ and tests/)
+    for f in $(field source <<<"$info"); do
+      [[ $f == */* && $f != *:* && -f $w/$f ]] || continue
+      install -o "$BUILD_USER" -m 644 "$w/$f" "$w/${f##*/}"
+    done
     # nanoblas and nvgpu checks need the GPU; skip check() when nvgpu is not running yet
     local nocheck=()
     [[ -e /dev/nvhost-ctrl-gpu ]] || nocheck=(--nocheck)
