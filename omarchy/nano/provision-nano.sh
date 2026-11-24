@@ -184,6 +184,10 @@ stage_7() {
   if command -v ufw >/dev/null 2>&1; then
     ufw allow 22/tcp
   fi
+  # Omarchy's hardware stage runs install/hardware/tegra210.sh, guarded by the platform detection;
+  # both live in this repository (install-omarchy-nano.sh installs them the same way)
+  install -Dm755 "$SCRIPT_DIR/../platform-detection/omarchy-hw-aarch64-tegra210" /usr/local/bin/omarchy-hw-aarch64-tegra210
+  install -Dm755 "$SCRIPT_DIR/../installer-hooks/tegra210.sh" /usr/share/omarchy/install/hardware/tegra210.sh
   install_file root/omarchy-apply-system-nano.sh 0755
   if bash /root/omarchy-apply-system-nano.sh 2>&1 | tee "$output"; then
     command_rc=0
