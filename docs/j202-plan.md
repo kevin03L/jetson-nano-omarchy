@@ -89,12 +89,19 @@ Fait :
 - `linux-nano` 7.2.11-4 (2026-11-24) : HDMI permanent (`regulator-always-on` sur `VDD_HUB_3V3`), avertissement AGIC (0104) et message
   Bluetooth -16 (0105) supprimés. `nano-hdmi` (7.2.11-3 + même DTB) : 35 min bureau + CUDA, 590 `gemm_test`, 0 échec. Sur 7.2.11-4,
   écran détecté aux 3 premiers redémarrages à chaud.
-- Blocage GPU au démarrage (3e redémarrage de 7.2.11-4, rien de semblable aux démarrages précédents) : FECS ne répond pas à sa
-  première commande, puis le pilote s'attend lui-même et `hung_task_panic` redémarre la carte 2 min plus tard. Patch nvgpu 0002 :
-  plus d'auto-attente, remise à zéro de GR et 3 essais. Testé avec une panne simulée (1 échec : récupéré, CUDA OK). Cause inconnue.
-  L'extinction volontaire du GPU (`echo 0 > /dev/nvgpu/igpu0/power`) plante le pilote : pas corrigé, pas utilisé.
-- eMMC muette au démarrage (1 fois sur une dizaine) : HS400 échoue (`mmc_hs400_to_hs200 failed, error -110`), `/boot` non monté, mode
-  secours sans réseau. Correctifs : `no-mmc-hs400` dans le DTS, `nofail` sur `/mnt/emmc` et `/boot`. Pas encore démarrés.
+- GPU : mise sous tension (2026-11-24). Le portage mainline de nvgpu avait perdu des étapes de L4T : l'horloge des fusibles (le GPU les
+  lit quand sa tension monte ; sans elle, tension coupée 20 ms = le GPU ne revient jamais), la purge de ses accès mémoire, l'isolation
+  (clamp) et le reset. Cause probable du blocage GPU vu une fois au démarrage (FECS muet, puis le pilote s'attendait lui-même).
+  nvgpu-nano 0002 (plus d'auto-attente, 3 essais), 0003 (microcode refait après une extinction forcée), 0004 (séquence de L4T), linux-nano
+  0106 (clamp). Mesuré : 3700 cycles d'alimentation sous charge, 0 échec (avant : carte figée en quelques centaines).
+- eMMC muette au démarrage (2 fois sur 29) : `tegra210.dtsi` règle l'horloge de SDMMC4 (eMMC) depuis le nœud de la microSD ; si l'eMMC est
+  déjà active, son horloge saute de 179 à 998 MHz (trace `clk_set_rate`). Le DTS J202 la règle depuis l'eMMC, en HS200 ; `nofail` sur
+  `/mnt/emmc` et `/boot`. Ensuite 30 démarrages sans erreur.
+- Veille (SC7) : linux-nano 0107 (EMC à 204 MHz avant la veille : le firmware la réveille à ce débit), 0109 (registres du SMMU restaurés,
+  sinon l'écran lit des adresses brutes et le PMU du GPU finit par s'arrêter), 0108 (alimentation USB partagée), pilotes RTC pour le réveil.
+  Mesuré : 15 veilles réelles de 10 s, puis `systemctl suspend` : 0 erreur GPU, écran, eMMC ; CUDA OK à chaque réveil. Réveil au clavier
+  et au bouton non testés.
+- 7.2.11-4 final : 10 redémarrages à chaud sur 10 (52 à 57 s). Démarrage à froid non testé sur cette version.
 - Ethernet 100 Mb/s (registres du PHY, 2026-11-24) : firmware `rtl8168f-2` chargé ; les deux côtés annoncent bien 1000FD, l'apprentissage
   gigabit échoue en 1,3 s (`rxloc`/`rxrem` à 0 ne prouvent rien : ils le sont aussi avec un lien à 1 Gb/s), 3 essais, puis repli à 100. Pareil sans EEE, en maître ou esclave forcé ;
   routeur forcé à 1 Gb/s : plus de lien. La négociation n'utilise que 2 paires, le gigabit les 4 : paires 4-5 ou 7-8 (câble, prise, port).

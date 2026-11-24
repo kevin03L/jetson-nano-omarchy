@@ -277,7 +277,6 @@ stage_9() {
   local tmp
   printf 'stage 9: user desktop config\n'
   install_file etc/systemd/user/bt-agent.service.d/10-kill-signal.conf 0644
-  install_file etc/systemd/sleep.conf.d/10-jetson-nano-no-suspend.conf 0644
   if [[ ! -e "$monitors" ]]; then
     as_user bash -c 'cp -af /etc/skel/. ~/'
   fi

@@ -1,0 +1,140 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] iommu: tegra-smmu: restore the registers after system suspend
+
+The SMMU registers are part of the memory controller and are lost in SC7. Nothing restores them:
+after a resume the display controller's I/O virtual addresses go straight to memory,
+
+  tegra-mc 70019000.memory-controller: display0a: read @0x0000000000f0bfc0: EMEM address decode error
+
+and the screen shows nothing useful. Save the page directories, the swgroup and client enables and
+the cache configuration late in suspend, and put them back first thing on resume.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/iommu/tegra-smmu.c	2026-11-24 18:39:58.878746953 +0100
++++ b/drivers/iommu/tegra-smmu.c	2026-11-24 18:39:58.902746466 +0100
+@@ -14,6 +14,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
++#include <linux/syscore_ops.h>
+ #include <linux/dma-mapping.h>
+ 
+ #include <soc/tegra/ahb.h>
+@@ -49,6 +50,14 @@ struct tegra_smmu {
+ 	struct dentry *debugfs;
+ 
+ 	struct iommu_device iommu;	/* IOMMU Core code handle */
++
++	/* registers lost in system suspend */
++	struct syscore syscore;
++	u32 *ptb_data;		/* per ASID */
++	u32 *swgroup_asid;	/* per swgroup */
++	u32 *client_enable;	/* per client (its enable register) */
++	u32 tlb_config;
++	u32 ptc_config;
+ };
+ 
+ struct tegra_pd;
+@@ -1102,6 +1111,68 @@ static void tegra_smmu_debugfs_exit(stru
+ 	debugfs_remove_recursive(smmu->debugfs);
+ }
+ 
++/*
++ * The SMMU sits in the memory controller, which loses its state in system
++ * suspend (SC7). Without it, devices resume with their I/O virtual addresses
++ * going straight to memory. This runs late, with only one CPU left and
++ * interrupts off, so nothing else uses the registers.
++ */
++static int tegra_smmu_syscore_suspend(void *data)
++{
++	struct tegra_smmu *smmu = data;
++	unsigned int i;
++
++	for (i = 0; i < smmu->soc->num_asids; i++) {
++		smmu_writel(smmu, SMMU_PTB_ASID_VALUE(i), SMMU_PTB_ASID);
++		smmu->ptb_data[i] = smmu_readl(smmu, SMMU_PTB_DATA);
++	}
++
++	for (i = 0; i < smmu->soc->num_swgroups; i++)
++		smmu->swgroup_asid[i] =
++			smmu_readl(smmu, smmu->soc->swgroups[i].reg);
++
++	for (i = 0; i < smmu->soc->num_clients; i++)
++		smmu->client_enable[i] =
++			smmu_readl(smmu, smmu->soc->clients[i].regs.smmu.reg);
++
++	smmu->tlb_config = smmu_readl(smmu, SMMU_TLB_CONFIG);
++	smmu->ptc_config = smmu_readl(smmu, SMMU_PTC_CONFIG);
++
++	return 0;
++}
++
++static void tegra_smmu_syscore_resume(void *data)
++{
++	struct tegra_smmu *smmu = data;
++	unsigned int i;
++
++	for (i = 0; i < smmu->soc->num_asids; i++) {
++		smmu_writel(smmu, SMMU_PTB_ASID_VALUE(i), SMMU_PTB_ASID);
++		smmu_writel(smmu, smmu->ptb_data[i], SMMU_PTB_DATA);
++	}
++
++	smmu_writel(smmu, smmu->ptc_config, SMMU_PTC_CONFIG);
++	smmu_writel(smmu, smmu->tlb_config, SMMU_TLB_CONFIG);
++	smmu_flush_ptc_all(smmu);
++	smmu_flush_tlb(smmu);
++
++	for (i = 0; i < smmu->soc->num_swgroups; i++)
++		smmu_writel(smmu, smmu->swgroup_asid[i],
++			    smmu->soc->swgroups[i].reg);
++
++	for (i = 0; i < smmu->soc->num_clients; i++)
++		smmu_writel(smmu, smmu->client_enable[i],
++			    smmu->soc->clients[i].regs.smmu.reg);
++
++	smmu_writel(smmu, SMMU_CONFIG_ENABLE, SMMU_CONFIG);
++	smmu_flush(smmu);
++}
++
++static const struct syscore_ops tegra_smmu_syscore_ops = {
++	.suspend = tegra_smmu_syscore_suspend,
++	.resume = tegra_smmu_syscore_resume,
++};
++
+ struct tegra_smmu *tegra_smmu_probe(struct device *dev,
+ 				    const struct tegra_smmu_soc *soc,
+ 				    struct tegra_mc *mc)
+@@ -1131,6 +1202,15 @@ struct tegra_smmu *tegra_smmu_probe(stru
+ 	INIT_LIST_HEAD(&smmu->groups);
+ 	mutex_init(&smmu->lock);
+ 
++	smmu->ptb_data = devm_kcalloc(dev, soc->num_asids, sizeof(u32),
++				      GFP_KERNEL);
++	smmu->swgroup_asid = devm_kcalloc(dev, soc->num_swgroups, sizeof(u32),
++					  GFP_KERNEL);
++	smmu->client_enable = devm_kcalloc(dev, soc->num_clients, sizeof(u32),
++					   GFP_KERNEL);
++	if (!smmu->ptb_data || !smmu->swgroup_asid || !smmu->client_enable)
++		return ERR_PTR(-ENOMEM);
++
+ 	smmu->regs = mc->regs;
+ 	smmu->soc = soc;
+ 	smmu->dev = dev;
+@@ -1179,11 +1259,16 @@ struct tegra_smmu *tegra_smmu_probe(stru
+ 	if (IS_ENABLED(CONFIG_DEBUG_FS))
+ 		tegra_smmu_debugfs_init(smmu);
+ 
++	smmu->syscore.ops = &tegra_smmu_syscore_ops;
++	smmu->syscore.data = smmu;
++	register_syscore(&smmu->syscore);
++
+ 	return smmu;
+ }
+ 
+ void tegra_smmu_remove(struct tegra_smmu *smmu)
+ {
++	unregister_syscore(&smmu->syscore);
+ 	iommu_device_unregister(&smmu->iommu);
+ 	iommu_device_sysfs_remove(&smmu->iommu);
+ 

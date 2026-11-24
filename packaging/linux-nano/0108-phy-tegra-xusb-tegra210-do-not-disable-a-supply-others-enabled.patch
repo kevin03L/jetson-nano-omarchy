@@ -1,0 +1,49 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] phy: tegra: xusb-tegra210: do not disable a supply that others enabled
+
+tegra210_usb2_phy_set_mode(USB_ROLE_NONE) disables the port supply when it is on. With a supply
+shared between ports it may be on for another one: at every suspend with the USB gadget in use
+
+  unbalanced disables for VDD_5V_USB
+  WARNING: drivers/regulator/core.c:3262 at _regulator_disable
+
+Remember whether this port enabled it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/phy/tegra/xusb-tegra210.c	2026-11-24 18:34:04.838152181 +0100
++++ b/drivers/phy/tegra/xusb-tegra210.c	2026-11-24 18:34:04.878151383 +0100
+@@ -1928,16 +1928,19 @@ static int tegra210_usb2_phy_set_mode(st
+ 			tegra210_xusb_padctl_id_override(padctl, true);
+ 
+ 			err = regulator_enable(port->supply);
++			if (!err)
++				port->vbus_enabled = true;
+ 		} else if (submode == USB_ROLE_DEVICE) {
+ 			tegra210_xusb_padctl_vbus_override(padctl, true);
+ 		} else if (submode == USB_ROLE_NONE) {
+ 			/*
+-			 * When port is peripheral only or role transitions to
+-			 * USB_ROLE_NONE from USB_ROLE_DEVICE, regulator is not
+-			 * be enabled.
++			 * Only drop what USB_ROLE_HOST enabled: the supply may
++			 * be shared with other ports and enabled by them.
+ 			 */
+-			if (regulator_is_enabled(port->supply))
++			if (port->vbus_enabled) {
+ 				regulator_disable(port->supply);
++				port->vbus_enabled = false;
++			}
+ 
+ 			tegra210_xusb_padctl_id_override(padctl, false);
+ 			tegra210_xusb_padctl_vbus_override(padctl, false);
+--- a/drivers/phy/tegra/xusb.h	2026-11-24 18:34:04.850151942 +0100
++++ b/drivers/phy/tegra/xusb.h	2026-11-24 18:34:04.878151383 +0100
+@@ -313,6 +313,7 @@ struct tegra_xusb_usb2_port {
+ 	struct tegra_xusb_port base;
+ 
+ 	struct regulator *supply;
++	bool vbus_enabled;
+ 	enum usb_dr_mode mode;
+ 	bool internal;
+ 	int usb3_port_fake;

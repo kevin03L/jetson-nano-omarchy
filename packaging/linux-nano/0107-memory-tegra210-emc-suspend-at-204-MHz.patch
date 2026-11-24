@@ -1,0 +1,62 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] memory: tegra210-emc: suspend at 204 MHz whatever the minimum rate
+
+The warm boot firmware restores the memory controller for 204 MHz. jetson-nano-emc sets a minimum
+rate of 1600 MHz through debugfs, so the clk_set_rate(204 MHz) in the suspend callback is clamped
+to 1600 MHz: the board enters SC7 and wakes up, with corrupted memory (an Oops and a secure monitor
+assertion within a second). Drop the minimum for the suspend, refuse to suspend at any other rate,
+and put it back on resume. Measured on a reComputer J1020 v2: with 204 MHz, a 25 s SC7 suspend
+resumes with the same session, CUDA and display.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/memory/tegra/tegra210-emc-core.c	2026-11-24 18:34:04.822152500 +0100
++++ b/drivers/memory/tegra/tegra210-emc-core.c	2026-11-24 18:34:04.874151463 +0100
+@@ -2240,17 +2240,36 @@ static void tegra210_emc_remove(struct p
+ static int __maybe_unused tegra210_emc_suspend(struct device *dev)
+ {
+ 	struct tegra210_emc *emc = dev_get_drvdata(dev);
++	unsigned long rate;
+ 	int err;
+ 
++	/*
++	 * The boot firmware restores the memory controller for 204 MHz when the
++	 * system resumes: at any other rate the memory is corrupted. Do not let
++	 * a minimum rate set through debugfs keep it fast.
++	 */
++	emc->resume_rate = clk_get_rate(emc->clk);
++	err = clk_set_min_rate(emc->clk, 0);
++	if (err < 0) {
++		dev_err(emc->dev, "failed to drop minimum rate: %d\n", err);
++		return err;
++	}
++
+ 	err = clk_rate_exclusive_get(emc->clk);
+ 	if (err < 0) {
+ 		dev_err(emc->dev, "failed to acquire clock: %d\n", err);
+ 		return err;
+ 	}
+ 
+-	emc->resume_rate = clk_get_rate(emc->clk);
+-
+ 	clk_set_rate(emc->clk, 204000000);
++	rate = clk_get_rate(emc->clk);
++	if (rate != 204000000) {
++		dev_err(emc->dev, "cannot suspend at %lu Hz\n", rate);
++		clk_rate_exclusive_put(emc->clk);
++		if (emc->debugfs.min_rate)
++			clk_set_min_rate(emc->clk, emc->debugfs.min_rate);
++		return -EBUSY;
++	}
+ 	tegra210_clk_emc_detach(emc->clk);
+ 
+ 	dev_dbg(dev, "suspending at %lu Hz\n", clk_get_rate(emc->clk));
+@@ -2271,6 +2290,8 @@ static int __maybe_unused tegra210_emc_r
+ 
+ 	clk_set_rate(emc->clk, emc->resume_rate);
+ 	clk_rate_exclusive_put(emc->clk);
++	if (emc->debugfs.min_rate)
++		clk_set_min_rate(emc->clk, emc->debugfs.min_rate);
+ 
+ 	dev_dbg(dev, "resuming at %lu Hz\n", clk_get_rate(emc->clk));
+ 
