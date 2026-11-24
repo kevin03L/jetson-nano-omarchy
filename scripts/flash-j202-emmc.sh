@@ -92,6 +92,12 @@ HOOKS=(base udev modconf)
 COMPRESSION="zstd"
 COMPRESSION_OPTIONS=(-19)
 EOF
+  # tegra-xusb is built in and probes before / is mounted: without its firmware
+  # in the initramfs, USB (and the Intel Bluetooth on it) stays dead. Comes from
+  # linux-firmware-nvidia, absent from the stock ALARM tarball.
+  local fw
+  fw=$(cd "$R" && ls usr/lib/firmware/nvidia/tegra210/xusb.bin* 2>/dev/null | head -n1 || true)
+  [[ -n $fw ]] && sed -i "s|^FILES=.*|FILES=(/$fw)|" "$R/etc/mkinitcpio-j202.conf"
   local m
   for m in proc sys dev; do mount --bind "/$m" "$R/$m"; done
   # shellcheck disable=SC2064

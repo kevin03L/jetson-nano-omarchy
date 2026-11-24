@@ -45,7 +45,9 @@ Fait :
 ## Phase 1 : Arch Linux ARM sur le kernel mainline (sans CUDA)
 **État au 2026-11-23 : fait.** ALARM 7.1.6 démarre depuis l'eMMC jusqu'au login (console série OK, Ethernet 1 Gb/s).
 - Corrigé en route : un initramfs est obligatoire (`i2c-tegra` est un module, et le PMIC qui alimente l'eMMC est derrière) ; la QSPI est désactivée dans le DTS.
-- Reste à faire : PWM (régulateur GPU, ventilateur), affichage (`Cannot find any crtc`), RAM à 204 MHz, déploiement du DTB sans QSPI sur la carte (copie dans `/boot/mainline/j202.dtb` via SSH).
+- 2026-11-24 : DTB sans QSPI déployé ; `linux-firmware-nvidia` installé et `xusb.bin` mis dans l'initramfs (`FILES=`), donc USB 3 et Bluetooth Intel OK. Paquets kernel bloqués (`IgnorePkg = linux-aarch64 linux-aarch64-headers`).
+- Redémarrage à chaud : se fige parfois avant même le bootloader (une fois sur deux essais), il faut couper le 12 V. Même problème que le projet d'origine, à revoir avec `linux-nano` (patch 0103).
+- Reste à faire : PWM (régulateur GPU, ventilateur), affichage (`Cannot find any crtc`), RAM à 204 MHz, Ethernet parfois négocié à 100 Mb/s.
 
 - Dans WSL : `cd /mnt/c/Users/Lerou/Documents/jetson/jetson-nano-omarchy && sudo LOG=/mnt/c/Users/Lerou/Documents/jetson/wsl-live.log bash scripts/flash-j202-emmc.sh`
 - Résultat : le bootloader NVIDIA R32.7.6 d'origine dans l'eMMC. `mmcblk0p1` contient Arch avec le kernel mainline d'ALARM (`/boot/mainline/Image`) et le DTB J202, sans initramfs : sdhci-tegra, ext4, pcie-tegra et nvme sont intégrés au kernel ALARM.
