@@ -37,7 +37,7 @@ as_user() {
 as_user_with_path() {
   local omarchy_path="$1"
   shift
-  runuser -u "$USER_NAME" -- env -u XDG_RUNTIME_DIR OMARCHY_PATH="$omarchy_path" PATH="/usr/share/omarchy/bin:$PATH" "$@" </dev/null
+  runuser -u "$USER_NAME" -- env -u XDG_RUNTIME_DIR OMARCHY_PATH="$omarchy_path" PATH="$omarchy_path/bin:$PATH" "$@" </dev/null
 }
 
 stage_1() {
@@ -150,8 +150,10 @@ stage_6() {
   printf 'stage 6: Omarchy repositories and packages\n'
   pacman -S --needed --noconfirm git
   if [[ ! -d /usr/share/omarchy ]]; then
-    git clone --depth 1 --branch v4.5.0 https://github.com/basecamp/omarchy /root/omarchy-git-v4.5.0
-    omarchy_path=/root/omarchy-git-v4.5.0
+    # outside /root: the scripts run as the desktop user
+    rm -rf /var/lib/jetson-nano/omarchy-git-v4.5.0
+    git clone --depth 1 --branch v4.5.0 https://github.com/basecamp/omarchy /var/lib/jetson-nano/omarchy-git-v4.5.0
+    omarchy_path=/var/lib/jetson-nano/omarchy-git-v4.5.0
   fi
   install -o root -g root -m 0440 /dev/null /etc/sudoers.d/90-provision-temp
   printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$USER_NAME" > /etc/sudoers.d/90-provision-temp
