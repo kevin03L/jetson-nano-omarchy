@@ -91,6 +91,14 @@ build_one() {
       say "$dir: installing dependencies ${missing[*]}"
       pacman -S --needed --asdeps --noconfirm "${missing[@]}"
     fi
+    # a source that is itself a pacman package (omarchy-nano) comes from pacman's cache; makepkg
+    # still checks it against the PKGBUILD's sha256
+    for f in $(field source <<<"$info"); do
+      [[ $f == *.pkg.tar.* && $f != *://* && ! -e $w/$f ]] || continue
+      [[ -f /var/cache/pacman/pkg/$f ]] || pacman -Sw --noconfirm "${f%-*-*-*}" || true
+      [[ -f /var/cache/pacman/pkg/$f ]] || die "$dir: $f is not in /var/cache/pacman/pkg (or the repositories)"
+      install -o "$BUILD_USER" -m 644 "/var/cache/pacman/pkg/$f" "$w/$f"
+    done
     # nanoblas and nvgpu checks need the GPU; skip check() when nvgpu is not running yet
     local nocheck=()
     [[ -e /dev/nvhost-ctrl-gpu ]] || nocheck=(--nocheck)
