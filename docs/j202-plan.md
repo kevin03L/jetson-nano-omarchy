@@ -83,4 +83,7 @@ Fait :
 - HDMI (2026-11-24) : sur la J202 aussi, `MOD_SLEEP*` (PA6) commande `VDD_3V3_HDMI` (schéma, page 13), donc le 5 V HDMI, le DDC et
   le HPD ; le noyau le met à 0. Mis à 1 par registre : HPD et EDID lus (ASUS VG249QML5A, 1920x1080 à 60 Hz), bureau et `gemm_test`
   (162 passages, 0 échec) stables 7 min. Entrée d'essai `nano-hdmi` : `regulator-always-on` sur `VDD_HUB_3V3` seul, pas encore démarrée.
+- Fermeture de session (2026-11-24) : `user@1001.service` finissait en `timeout`. Cause : `bt-agent` (bluez-tools 0.2.0-6) inverse SIGTERM
+  et SIGUSR1 ; il ignore l'arrêt, et Omarchy ne laisse que 5 s à `user@`. `KillSignal=SIGINT` (drop-in `bt-agent.service.d`, installé
+  à l'étape 9) règle le problème : essai A/B sur la même session, échec à 5,2 s sans, arrêt propre en 0,13 s avec.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.

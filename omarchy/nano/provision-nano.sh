@@ -268,6 +268,7 @@ stage_9() {
   local looknfeel="/home/$USER_NAME/.config/hypr/looknfeel.lua"
   local tmp
   printf 'stage 9: user desktop config\n'
+  install_file etc/systemd/user/bt-agent.service.d/10-kill-signal.conf 0644
   if [[ ! -e "$monitors" ]]; then
     as_user bash -c 'cp -af /etc/skel/. ~/'
   fi
