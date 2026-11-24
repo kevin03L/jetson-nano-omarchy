@@ -5,8 +5,10 @@
 set -u
 shopt -s nullglob
 FAN_CURVE="30:70 36:80 40:90 44:100"
+FAN_CURVE_ECO="35:35 45:50 55:75 65:100"
 FAN_HYST=2
 [ -r /etc/jetson-nano/fan.conf ] && . /etc/jetson-nano/fan.conf
+[ "$(cat /etc/jetson-nano/mode 2>/dev/null)" = eco ] && FAN_CURVE=$FAN_CURVE_ECO
 log() { echo "fan-curve: $*"; }
 
 R=${FAN_ROOT:-}   # test hook: a fake sysfs tree

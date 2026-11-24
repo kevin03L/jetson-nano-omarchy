@@ -1,0 +1,16 @@
+# jetson-nano-board: power modes, sourced by jetson-nano-mode, mode-set, power-limit and fan-curve.
+# perf and max need a boot entry that offers these clocks (nvgpu.gpu_max_khz=,
+# clk_tegra124_dfll_fcpu.max_khz= and nano.cpu_max_khz=); NVIDIA does not guarantee them.
+MODES="eco normal perf max"
+MODE_FILE=${MODE_FILE:-/etc/jetson-nano/mode}
+CPUFREQ=${CPUFREQ:-/sys/devices/system/cpu/cpufreq/policy0}
+DEVFREQ=${DEVFREQ:-/sys/class/devfreq/57000000.gpu}
+
+mode_known() { case " $MODES " in *" $1 "*) return 0 ;; esac; return 1; }
+mode_cpu_khz() { case $1 in eco) echo 918000 ;; normal) echo 1479000 ;; perf) echo 1683000 ;; max) echo 1785000 ;; esac; }
+mode_gpu_hz() { case $1 in eco) echo 537600000 ;; normal) echo 921600000 ;; perf) echo 1075200000 ;; max) echo 1152000000 ;; esac; }
+mode_available() {
+  mode_known "$1" &&
+    grep -qw "$(mode_cpu_khz "$1")" "$CPUFREQ/scaling_available_frequencies" 2>/dev/null &&
+    grep -qw "$(mode_gpu_hz "$1")" "$DEVFREQ/available_frequencies" 2>/dev/null
+}

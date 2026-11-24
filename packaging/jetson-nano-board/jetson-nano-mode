@@ -1,0 +1,90 @@
+#!/bin/bash
+# jetson-nano-mode: choose the power mode (CPU and GPU clock caps, fan curve).
+#   jetson-nano-mode            status
+#   jetson-nano-mode list       the modes this boot entry can run
+#   jetson-nano-mode set MODE   eco, normal, perf or max; kept over a reboot
+#   jetson-nano-mode menu       pick one in the Omarchy menu
+set -u
+shopt -s nullglob
+. /usr/lib/jetson-nano/modes
+
+fr=0
+case ${LC_ALL:-${LC_MESSAGES:-${LANG:-}}} in fr*) fr=1 ;; esac
+grep -qsE '^KEYMAP="?fr' /etc/vconsole.conf && fr=1
+tr_() { if [ $fr = 1 ]; then echo "$2"; else echo "$1"; fi; }
+
+name_of() {
+  case $1 in
+    eco) tr_ Eco 'Éco' ;;
+    normal) tr_ Normal Normal ;;
+    perf) tr_ Performance Performance ;;
+    max) tr_ Maximum Maximum ;;
+  esac
+}
+mhz() { echo "CPU $(( $(mode_cpu_khz "$1") / 1000 )) MHz, GPU $(( $(mode_gpu_hz "$1") / 1000000 )) MHz"; }
+
+available() { local m; for m in $MODES; do mode_available "$m" && echo "$m"; done; }
+
+current() {
+  local m; m=$(cat "$MODE_FILE" 2>/dev/null)
+  [ -n "$m" ] && mode_available "$m" && { echo "$m"; return; }
+  available | tail -n1
+}
+
+apply() {
+  mode_known "$1" || { tr_ "unknown mode: $1 (eco, normal, perf, max)" "mode inconnu : $1 (eco, normal, perf, max)" >&2; return 2; }
+  mode_available "$1" || { tr_ "mode $1 needs clocks that this boot entry does not offer" "le mode $1 demande des fréquences que cette entrée de démarrage n'offre pas" >&2; return 1; }
+  if [ "$(id -u)" = 0 ]; then /usr/lib/jetson-nano/mode-set "$1"; else pkexec /usr/lib/jetson-nano/mode-set "$1"; fi
+}
+
+status() {
+  local m z h v c t=0 g=0 p=
+  m=$(current)
+  echo "$(tr_ Mode Mode) : $(name_of "$m") ($(mhz "$m"))"
+  for z in /sys/class/thermal/thermal_zone*; do
+    case $(cat "$z/type") in cpu-thermal) t=$(cat "$z/temp") ;; gpu-thermal) g=$(cat "$z/temp") ;; esac
+  done
+  echo "CPU : $(( $(cat "$CPUFREQ/scaling_cur_freq") / 1000 )) / $(( $(cat "$CPUFREQ/scaling_max_freq") / 1000 )) MHz, $((t / 1000)) °C"
+  echo "GPU : $(( $(cat "$DEVFREQ/cur_freq") / 1000000 )) / $(( $(cat "$DEVFREQ/max_freq") / 1000000 )) MHz, $((g / 1000)) °C"
+  for h in /sys/class/hwmon/hwmon*; do
+    case $(cat "$h/name") in
+      ina3221) v=$(cat "$h/in1_input"); c=$(cat "$h/curr1_input")
+        echo "$(tr_ Power Puissance) : $((v * c / 1000000)).$((v * c / 100000 % 10)) W, $v mV" ;;
+      pwmfan) p=$(( $(cat "$h/pwm1") * 100 / 255 )) ;;
+    esac
+  done
+  [ -n "$p" ] && echo "$(tr_ Fan Ventilateur) : $p %"
+  return 0
+}
+
+menu() {
+  local m cur opts=() sel label
+  cur=$(current)
+  for m in $(available); do opts+=("$(printf '⚡\t%s\t%s' "$(name_of "$m")" "$(mhz "$m")")"); done
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v omarchy-menu-select >/dev/null; then
+    sel=$(omarchy-menu-select "$(tr_ 'Power mode' 'Mode de puissance') ($(name_of "$cur"))" "${opts[@]}" -- --width 460) || return 0
+  else
+    select sel in $(available); do break; done
+  fi
+  [ -n "${sel:-}" ] || return 0
+  label=${sel%%$'\t'*}
+  for m in $(available); do
+    [ "$m" = "$label" ] || [ "$(name_of "$m")" = "$label" ] || continue
+    if apply "$m"; then
+      command -v notify-send >/dev/null && notify-send -a jetson-nano-mode "$(tr_ 'Power mode' 'Mode de puissance')" "$(name_of "$m") : $(mhz "$m")"
+    else
+      command -v notify-send >/dev/null && notify-send -u critical -a jetson-nano-mode "$(tr_ 'Power mode not changed' 'Mode de puissance inchangé')"
+      return 1
+    fi
+    return 0
+  done
+}
+
+case ${1:-status} in
+  status) status ;;
+  list) for m in $(available); do printf '%s %s\t%s\n' "$([ "$m" = "$(current)" ] && echo '*' || echo ' ')" "$m" "$(mhz "$m")"; done ;;
+  get) current ;;
+  set) [ $# -eq 2 ] || { echo "jetson-nano-mode set eco|normal|perf|max" >&2; exit 2; }; apply "$2" && status ;;
+  menu) menu ;;
+  *) sed -n '2,6s/^# //p' "$0"; exit 2 ;;
+esac

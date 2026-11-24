@@ -1,0 +1,26 @@
+#!/bin/bash
+# jetson-nano-board: set the power mode $1 (run as root; pkexec allows it to the user at the screen).
+set -eu
+. /usr/lib/jetson-nano/modes
+if [ $# -ne 1 ] || ! mode_available "$1"; then
+  echo "mode-set: mode not available: ${1:-}" >&2
+  exit 1
+fi
+install -d -m 755 "$(dirname "$MODE_FILE")"
+tmp=$(mktemp "$MODE_FILE.XXXXXX")
+echo "$1" > "$tmp"
+chmod 644 "$tmp"
+mv -f "$tmp" "$MODE_FILE"
+systemctl reset-failed jetson-nano-power.service jetson-nano-fan-curve.service 2>/dev/null || true
+systemctl restart jetson-nano-power.service
+if systemctl -q is-active jetson-nano-fan-curve.service; then systemctl restart jetson-nano-fan-curve.service; fi
+# wait until the limiter has applied the caps
+for _ in $(seq 30); do
+  if [ "$(cat "$CPUFREQ/scaling_max_freq")" = "$(mode_cpu_khz "$1")" ] &&
+     [ "$(cat "$DEVFREQ/max_freq")" = "$(mode_gpu_hz "$1")" ]; then
+    exit 0
+  fi
+  sleep 0.1
+done
+echo "mode-set: the clock caps did not change" >&2
+exit 1

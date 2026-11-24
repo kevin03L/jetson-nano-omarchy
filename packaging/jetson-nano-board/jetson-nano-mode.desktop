@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Power mode
+Name[fr]=Mode de puissance
+GenericName=Jetson Nano CPU and GPU clocks
+Comment=Choose eco, normal, performance or maximum
+Comment[fr]=Choisir éco, normal, performance ou maximum
+Exec=jetson-nano-mode menu
+Icon=preferences-system-performance
+Categories=Settings;System;
+Keywords=power;mode;performance;puissance;jetson;gpu;cpu;

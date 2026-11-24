@@ -29,6 +29,19 @@ else
   : "${GPU_MAX_HZ:=614400000}" "${CPU_MAX_KHZ:=1479000}" "${BUDGET_MW:=8000}" "${VMIN_MV:=4740}"
 fi
 
+# The power mode (jetson-nano-mode) lowers the caps of the profile, it never raises them.
+MODE=
+if [ -r "${MODE_FILE:-/etc/jetson-nano/mode}" ] && [ -r /usr/lib/jetson-nano/modes ]; then
+  . /usr/lib/jetson-nano/modes
+  MODE=$(cat "$MODE_FILE")
+  if mode_known "$MODE"; then
+    [ "$(mode_cpu_khz "$MODE")" -lt "$CPU_MAX_KHZ" ] && CPU_MAX_KHZ=$(mode_cpu_khz "$MODE")
+    [ "$(mode_gpu_hz "$MODE")" -lt "$GPU_MAX_HZ" ] && GPU_MAX_HZ=$(mode_gpu_hz "$MODE")
+  else
+    MODE=
+  fi
+fi
+
 # --gpu-cap DEVFREQ_DIR: called by udev the moment the GPU's devfreq device appears, so no frame
 # renders above the supply's cap. Without it the desktop can start drawing at 921.6 MHz before this
 # service has found the GPU, and on a 2 A supply that browns the board out (measured 2026-11-22:
@@ -63,7 +76,7 @@ load_gpu_steps() {
   gi=$(( ${#gpu_steps[@]} - 1 )); set_gpu
 }
 if wait_for $DF/available_frequencies "${GPU_WAIT_S:-120}"; then load_gpu_steps; else log "no GPU devfreq device: GPU cap not applied"; fi
-log "profile ${SUPPLY_W} W: CPU <= $((CPU_MAX_KHZ/1000)) MHz, GPU <= $((GPU_MAX_HZ/1000000)) MHz, budget ${BUDGET_MW} mW, input >= ${VMIN_MV} mV"
+log "${MODE:+mode $MODE, }profile ${SUPPLY_W} W: CPU <= $((CPU_MAX_KHZ/1000)) MHz, GPU <= $((GPU_MAX_HZ/1000000)) MHz, budget ${BUDGET_MW} mW, input >= ${VMIN_MV} mV"
 
 # the INA3221 (I2C bus of the camera controller, 0x40, 5 mOhm shunts; JetPack's device tree)
 find_ina() { for h in $R/sys/class/hwmon/hwmon*; do [ "$(cat $h/name)" = ina3221 ] && { echo $h; return; }; done; }
