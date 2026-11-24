@@ -147,6 +147,7 @@ _package() {
 
 _package-headers() {
   pkgdesc="Header files and scripts for building modules for linux kernel - ${_desc}"
+  install=${pkgname}.install
 
   cd $_srcname
   local builddir="$pkgdir/usr/lib/modules/$(<version)/build"

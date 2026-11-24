@@ -1,0 +1,18 @@
+# A cross-built linux-nano-headers (scripts/cross-build-linux-nano.sh) ships x86 build tools.
+# Out-of-tree modules (nvgpu-nano) need fixdep and modpost: rebuild them natively when they are
+# not aarch64 binaries. A native build is left as it is.
+_native_tools() {
+  local b
+  for b in /usr/lib/modules/*-nano-ARCH/build; do
+    [[ -x $b/scripts/mod/modpost ]] || continue
+    file -b "$b/scripts/mod/modpost" | grep -q aarch64 && continue
+    command -v gcc >/dev/null || { echo ">>> linux-nano-headers: x86 build tools; install gcc and reinstall this package"; continue; }
+    echo ">>> linux-nano-headers: rebuilding fixdep and modpost for aarch64 in $b"
+    (cd "$b" &&
+      gcc -O2 -I scripts/include -o scripts/basic/fixdep scripts/basic/fixdep.c &&
+      gcc -O2 -I scripts/include -I scripts/mod -o scripts/mod/modpost \
+        scripts/mod/modpost.c scripts/mod/file2alias.c scripts/mod/sumversion.c scripts/mod/symsearch.c)
+  done
+}
+post_install() { _native_tools; }
+post_upgrade() { _native_tools; }
