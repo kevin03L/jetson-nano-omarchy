@@ -1,0 +1,6 @@
+# jetson-nano-fan-curve.service, copy to /etc/jetson-nano/fan.conf
+# Points "temperature in C:fan in %", low to high; the speed between two points is interpolated.
+# The hottest of the CPU, GPU and PLL sensors counts.
+FAN_CURVE="30:70 36:80 40:90 44:100"
+# The fan speeds up at once, and slows down only when it is this many degrees cooler.
+FAN_HYST=2

@@ -14,7 +14,14 @@ shopt -s nullglob
 
 SUPPLY_W=10
 [ -r "${POWER_LIMIT_CONF:-/etc/jetson-nano/power.conf}" ] && . "${POWER_LIMIT_CONF:-/etc/jetson-nano/power.conf}"
+# A boot entry that raises the clocks (nvgpu.gpu_max_khz=, nano.cpu_max_khz=) raises the caps too.
 if [ "$SUPPLY_W" -ge 20 ]; then
+  for a in $(cat "${POWER_LIMIT_CMDLINE:-/proc/cmdline}"); do
+    case $a in
+      nvgpu.gpu_max_khz=[1-9]*) GPU_MAX_HZ=$(( ${a#*=} * 1000 )) ;;
+      nano.cpu_max_khz=[1-9]*) CPU_MAX_KHZ=${a#*=} ;;
+    esac
+  done
   : "${GPU_MAX_HZ:=921600000}" "${CPU_MAX_KHZ:=1479000}" "${BUDGET_MW:=17000}" "${VMIN_MV:=4750}"
 else
   # measured 2026-11-21 on a 5 V 2 A supply: CPU 4 cores 1479 MHz = 5.2 W (fine);

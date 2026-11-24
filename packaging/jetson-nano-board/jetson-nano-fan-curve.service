@@ -1,0 +1,13 @@
+[Unit]
+Description=Jetson Nano fan curve (/etc/jetson-nano/fan.conf)
+After=jetson-nano-fan.service
+
+[Service]
+ExecStart=/usr/lib/jetson-nano/fan-curve
+# whatever stops the curve, the fan does not stay slow
+ExecStopPost=/usr/lib/jetson-nano/fan-curve --full
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,57 @@
+#!/bin/bash
+# jetson-nano-board: fan speed from the temperature, along the curve of /etc/jetson-nano/fan.conf.
+# The kernel's thermal governor only has four fan steps (0, 25, 50, 100 %) and starts late.
+# Its critical and throttling trips stay in force: only the CPU zone's policy changes.
+set -u
+shopt -s nullglob
+FAN_CURVE="30:70 36:80 40:90 44:100"
+FAN_HYST=2
+[ -r /etc/jetson-nano/fan.conf ] && . /etc/jetson-nano/fan.conf
+log() { echo "fan-curve: $*"; }
+
+R=${FAN_ROOT:-}   # test hook: a fake sysfs tree
+P=
+for _ in $(seq 60); do   # the PWM and the sensors probe late
+  for h in "$R"/sys/class/hwmon/hwmon*; do [ "$(cat "$h/name")" = pwmfan ] && P=$h/pwm1; done
+  Z=()
+  for z in "$R"/sys/class/thermal/thermal_zone*; do
+    case $(cat "$z/type") in cpu-thermal) Z+=("$z"); CZ=$z ;; gpu-thermal|pllx-thermal) Z+=("$z") ;; esac
+  done
+  [ -n "$P" ] && [ ${#Z[@]} -gt 0 ] && break
+  sleep 1
+done
+[ -n "$P" ] || { log "no PWM fan"; exit 1; }
+[ "${1:-}" = --full ] && { echo 255 > "$P"; exit 0; }
+[ ${#Z[@]} -gt 0 ] || { log "no temperature sensor: full speed"; echo 255 > "$P"; exit 1; }
+echo 1 > "${P}_enable"
+[ -n "${CZ:-}" ] && echo user_space > "$CZ/policy" 2>/dev/null
+
+T=(); S=()
+for p in $FAN_CURVE; do T+=($(( ${p%%:*} * 1000 ))); S+=("${p##*:}"); done
+
+# percent TEMP_MC: the curve, in hundredths of a percent
+percent() {
+  local t=$1 i n=$(( ${#T[@]} - 1 ))
+  [ "$t" -le "${T[0]}" ] && { pc=$(( S[0] * 100 )); return; }
+  [ "$t" -ge "${T[n]}" ] && { pc=$(( S[n] * 100 )); return; }
+  for ((i = 0; i < n; i++)); do
+    [ "$t" -lt "${T[i+1]}" ] && break
+  done
+  pc=$(( S[i] * 100 + (S[i+1] - S[i]) * 100 * (t - T[i]) / (T[i+1] - T[i]) ))
+}
+
+log "curve $FAN_CURVE, hysteresis $FAN_HYST C"
+cur=-1
+exec {tick}<> <(:)   # read -t on an idle pipe: sleep without forking
+while :; do
+  m=0
+  for z in "${Z[@]}"; do { read -r t < "$z/temp" && [ "$t" -gt "$m" ]; } 2>/dev/null && m=$t; done
+  [ "$m" -gt 0 ] || m=999000   # no sensor answers: full speed
+  percent "$m"; up=$pc
+  percent $(( m + FAN_HYST * 1000 )); down=$pc
+  if [ $up -gt $cur ]; then cur=$up; elif [ $down -lt $cur ]; then cur=$down; fi
+  pwm=$(( (cur * 255 + 5000) / 10000 ))
+  read -r now < "$P"
+  [ "$now" = "$pwm" ] || echo "$pwm" > "$P"
+  read -r -t 1 -u $tick _
+done

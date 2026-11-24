@@ -8,7 +8,7 @@
 # runtime-PM deadlock with pwm-tegra hung boots), carried here until it is in the fork. 0002 retries
 # a failed FECS firmware start instead of hanging until the hung-task panic; 0003 lets the GPU be
 # powered off and on again; 0004 adds the steps of NVIDIA's rail sequence that the port left out; 0005
-# keeps devfreq's statistics right.
+# keeps devfreq's statistics right; 0006 adds optional higher GPU clocks (off by default).
 #
 # Boot modes: nouveau and nvgpu both bind the GPU. The CUDA boot entry blacklists nouveau
 # (modprobe.blacklist=nouveau nano.mode=cuda) and nvgpu loads by its device-tree alias; the
@@ -35,7 +35,8 @@ source=("linux-nvgpu::git+https://github.com/Kristianaaron/linux-nvgpu.git#commi
         0002-nvgpu-gr-retry-FECS-init-and-do-not-wait-for-it-from-itself.patch
         0003-nvgpu-gr-rebuild-the-ctxsw-ucode-after-a-forced-power-off.patch
         0004-nvgpu-gm20b-power-the-GPU-rail-as-L4T-does.patch
-        0005-nvgpu-scale-report-the-rate-of-a-duplicate-request.patch)
+        0005-nvgpu-scale-report-the-rate-of-a-duplicate-request.patch
+        0006-nvgpu-gm20b-optional-noise-aware-mode-and-higher-clocks.patch)
 sha256sums=('SKIP'
             'SKIP'
             'd8f88234ce72e53148cbba238dd7443816d9bf932a1eebdc4306e5d88b1f74bc'
@@ -45,7 +46,8 @@ sha256sums=('SKIP'
             '888d0756d8a5cd8cb02e0e2d2a90c2f64871200460603298222d6b82cff6ba3a'
             '19bf9c171e90649ad0162ff2e22c9a0c4530109856403d6a9eb066f9eeae01d6'
             'ddd9acc2ef09dfd777d75c8204c8a0d633e834500e6d5e7d8e136984cf93eb17'
-            '434f380d1bcf61adadf64f4ecca82fbfd4ff0292d9f8ca1181d4ea9145f8ff9b')
+            '434f380d1bcf61adadf64f4ecca82fbfd4ff0292d9f8ca1181d4ea9145f8ff9b'
+            'eb13cf3edaa14a349a4234d06294a533f0dba3a025c1698052979dd718783edd')
 
 _kdir=/usr/lib/modules/$_kernver/build
 
@@ -55,6 +57,7 @@ prepare() {
   git -C linux-nvgpu apply "$srcdir/0003-nvgpu-gr-rebuild-the-ctxsw-ucode-after-a-forced-power-off.patch"
   git -C linux-nvgpu apply "$srcdir/0004-nvgpu-gm20b-power-the-GPU-rail-as-L4T-does.patch"
   git -C linux-nvgpu apply "$srcdir/0005-nvgpu-scale-report-the-rate-of-a-duplicate-request.patch"
+  git -C linux-nvgpu apply "$srcdir/0006-nvgpu-gm20b-optional-noise-aware-mode-and-higher-clocks.patch"
 }
 
 build() {

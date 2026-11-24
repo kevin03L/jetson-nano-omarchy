@@ -1,0 +1,245 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] nvgpu: gm20b: optional noise-aware GPCPLL mode and clocks above 921.6 MHz
+
+Without nvgpu.gpu_max_khz nothing changes: PLL in normal mode, 921.6 MHz at most. With it, the
+GPCPLL runs in noise-aware (NA) mode, the mode of the Jetson TX1 (same GM20B), with NVIDIA's NA
+voltage table, up to the given clock. NA mode needs less voltage: on a chip of speedo 2099, 1037 mV
+instead of 1133 at 921.6 MHz and 1079 mV at 998.4. NVIDIA's table ends at 998.4 MHz; 1075.2 and
+1152 MHz continue it.
+
+NA mode uses the ADC calibration fuses, which the driver already reads, and the highest clock at the
+minimum voltage, which only the downstream DVFS framework gave: take it from the table.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/drivers/gpu/nvgpu/hal/clk/clk_gm20b.c b/drivers/gpu/nvgpu/hal/clk/clk_gm20b.c
+index fa54357..c4b788b 100644
+--- a/drivers/gpu/nvgpu/hal/clk/clk_gm20b.c
++++ b/drivers/gpu/nvgpu/hal/clk/clk_gm20b.c
+@@ -36,6 +36,7 @@
+ #include <nvgpu/pmu/clk/clk.h>
+ 
+ #include "clk_gm20b.h"
++#include "os/linux/platform_gk20a_tegra.h"
+ 
+ #include <nvgpu/hw/gm20b/hw_trim_gm20b.h>
+ #include <nvgpu/hw/gm20b/hw_fuse_gm20b.h>
+@@ -1186,7 +1187,7 @@ struct pll_parms *gm20b_get_gpc_pll_parms(void)
+ 	return &gpc_pll_params;
+ }
+ 
+-#ifdef CONFIG_TEGRA_USE_NA_GPCPLL
++#if defined(CONFIG_TEGRA_USE_NA_GPCPLL) || defined(NVGPU_TEGRA210_MAINLINE_POWER)
+ static int nvgpu_fuse_can_use_na_gpcpll(struct gk20a *g, int *id)
+ {
+ 	return nvgpu_tegra_get_gpu_speedo_id(g, id);
+@@ -1198,6 +1199,10 @@ static int nvgpu_clk_set_na_gpcpll(struct gk20a *g)
+ 	int speedo_id;
+ 	int err;
+ 
++#ifdef NVGPU_TEGRA210_MAINLINE_POWER
++	if (!gm20b_mainline_na_pll(g))
++		return 0;
++#endif
+ 	err = nvgpu_fuse_can_use_na_gpcpll(g, &speedo_id);
+ 	if (err == 0) {
+ 		/* NA mode is supported only at max update rate 38.4 MHz */
+@@ -1268,7 +1273,7 @@ int gm20b_init_clk_setup_sw(struct gk20a *g)
+ 	  * self-calibration will be used for those parts.
+ 	  */
+ 	clk_config_calibration_params(g);
+-#ifdef CONFIG_TEGRA_USE_NA_GPCPLL
++#if defined(CONFIG_TEGRA_USE_NA_GPCPLL) || defined(NVGPU_TEGRA210_MAINLINE_POWER)
+ 	err = nvgpu_clk_set_na_gpcpll(g);
+ 	if (err != 0) {
+ 		nvgpu_err(g, "NA GPCPLL fuse info. not available");
+diff --git a/drivers/gpu/nvgpu/os/linux/clk.c b/drivers/gpu/nvgpu/os/linux/clk.c
+index 469e277..c7f1432 100644
+--- a/drivers/gpu/nvgpu/os/linux/clk.c
++++ b/drivers/gpu/nvgpu/os/linux/clk.c
+@@ -119,6 +119,11 @@ static unsigned long nvgpu_linux_get_fmax_at_vmin_safe(struct gk20a *g)
+ 			g->clk.tegra_clk_parent);
+ #endif
+ 
++#ifdef NVGPU_TEGRA210_MAINLINE_POWER
++	if (platform->mainline_power)
++		return gm20b_mainline_fmax_at_vmin(g);
++#endif
++
+ 	if (platform->maxmin_clk_id) {
+ #ifdef CONFIG_NV_TEGRA_BPMP
+ 		return tegra_bpmp_dvfs_get_fmax_at_vmin(
+diff --git a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
+index 4de6b68..014eb7a 100644
+--- a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
++++ b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
+@@ -78,7 +78,7 @@
+ #include <soc/tegra/fuse.h>
+ 
+ /* GM20B frequency/voltage points, see gm20b_mainline_dvfs_init() */
+-#define GM20B_DVFS_MAX_POINTS	12
++#define GM20B_DVFS_MAX_POINTS	15
+ /* Highest GPU rail voltage used for DVFS (as nouveau's gk20a_volt_vid_set()) */
+ #define GM20B_DVFS_MAX_UV	1200000
+ 
+@@ -102,6 +102,8 @@ struct gm20b_mainline_power {
+ 	unsigned long dvfs_freq[GM20B_DVFS_MAX_POINTS];	/* Hz, ascending */
+ 	int dvfs_uv[GM20B_DVFS_MAX_POINTS];
+ 	int dvfs_num;
++	/* Highest point that the minimum voltage is enough for, Hz */
++	unsigned long dvfs_fmax_at_vmin;
+ 	/* Rail voltage last requested, 0 while not yet set */
+ 	int dvfs_uv_cur;
+ };
+@@ -117,7 +119,7 @@ struct gm20b_mainline_power {
+ static const struct {
+ 	u32 khz;
+ 	s32 c0, c1, c2;
+-} gm20b_cvb_pll[GM20B_DVFS_MAX_POINTS] = {
++} gm20b_cvb_pll[] = {
+ 	{  76800, 1786666,  -85625, 1632 },
+ 	{ 153600, 1846729,  -87525, 1632 },
+ 	{ 230400, 1910480,  -89425, 1632 },
+@@ -132,6 +134,39 @@ static const struct {
+ 	{ 921600, 2647676, -106455, 1632 },
+ };
+ 
++/*
++ * The same with the GPCPLL in noise-aware (NA) mode, where the PLL follows the
++ * rail and the GPU needs less voltage for a given clock (nouveau's
++ * gm20b_na_cvb_coef[]):
++ *   uV = c0 + c1 * s + c2 * s^2 + (c3 * s + c4 + c5 * t) * t, t in degrees.
++ * The coefficients other than c0 are the same at every point and c0 grows by
++ * 41891.5 per 76.8 MHz. NVIDIA's table ends at 998.4 MHz (Jetson TX1); the two
++ * last points continue the line.
++ */
++#define GM20B_NA_C1	8144
++#define GM20B_NA_C2	(-940)
++#define GM20B_NA_C3	808
++#define GM20B_NA_C4	(-21583)
++#define GM20B_NA_C5	226
++static const struct {
++	u32 khz;
++	s32 c0;
++} gm20b_cvb_na[GM20B_DVFS_MAX_POINTS] = {
++	{   76800,  814294 }, {  153600,  856185 }, {  230400,  898077 },
++	{  307200,  939968 }, {  384000,  981860 }, {  460800, 1023751 },
++	{  537600, 1065642 }, {  614400, 1107534 }, {  691200, 1149425 },
++	{  768000, 1191317 }, {  844800, 1233208 }, {  921600, 1275100 },
++	{  998400, 1316991 }, { 1075200, 1358882 }, { 1152000, 1400774 },
++};
++
++/*
++ * 0: NVIDIA's setting for the Jetson Nano, 921.6 MHz at most, PLL in normal
++ * mode. Otherwise the GPCPLL runs in NA mode and this is the highest clock.
++ */
++static unsigned int nvgpu_gpu_max_khz;
++module_param_named(gpu_max_khz, nvgpu_gpu_max_khz, uint, 0444);
++MODULE_PARM_DESC(gpu_max_khz, "highest GPU clock in kHz, with the GPCPLL in noise-aware mode (0: stock 921600, normal mode)");
++
+ /*
+  * simple_ondemand thresholds as in nouveau's gk20a_devfreq.c: raise the clock
+  * at 45% load instead of the default 90%, so short desktop bursts (a menu, a
+@@ -147,10 +182,35 @@ static const int gm20b_speedo_vmin_uv[] = {
+ 	950000, 840000, 818750, 840000, 810000,
+ };
+ 
++static int gm20b_cvb_points(void)
++{
++	return nvgpu_gpu_max_khz ? ARRAY_SIZE(gm20b_cvb_na) :
++				   ARRAY_SIZE(gm20b_cvb_pll);
++}
++
++static u32 gm20b_cvb_khz(int i)
++{
++	return nvgpu_gpu_max_khz ? gm20b_cvb_na[i].khz : gm20b_cvb_pll[i].khz;
++}
++
+ static int gm20b_cvb_uv(int i, int speedo)
+ {
+ 	int uv;
+ 
++	if (nvgpu_gpu_max_khz) {
++		/* at -1 degree as nouveau: a warmer GPU needs less */
++		const int t = -10, ts = 10;
++		int tv;
++
++		uv = DIV_ROUND_CLOSEST(GM20B_NA_C2 * speedo, 100);
++		uv = DIV_ROUND_CLOSEST((uv + GM20B_NA_C1) * speedo, 100) +
++			gm20b_cvb_na[i].c0;
++		tv = DIV_ROUND_CLOSEST(GM20B_NA_C3 * speedo, 100) +
++			GM20B_NA_C4 + DIV_ROUND_CLOSEST(GM20B_NA_C5 * t, ts);
++		uv += DIV_ROUND_CLOSEST(tv * t, ts);
++		return DIV_ROUND_UP(uv, 1000) * 1000;
++	}
++
+ 	uv = DIV_ROUND_CLOSEST(gm20b_cvb_pll[i].c2 * speedo, 100);
+ 	uv = DIV_ROUND_CLOSEST((uv + gm20b_cvb_pll[i].c1) * speedo, 100) +
+ 		gm20b_cvb_pll[i].c0;
+@@ -177,14 +237,18 @@ static void gm20b_mainline_dvfs_init(struct gk20a *g,
+ 	}
+ 	vmin = gm20b_speedo_vmin_uv[speedo_id];
+ 
+-	for (i = 0; i < GM20B_DVFS_MAX_POINTS; i++) {
++	for (i = 0; i < gm20b_cvb_points(); i++) {
++		if (nvgpu_gpu_max_khz && gm20b_cvb_khz(i) > nvgpu_gpu_max_khz)
++			break;
+ 		uv = max(gm20b_cvb_uv(i, speedo), vmin);
+ 		if (uv > GM20B_DVFS_MAX_UV ||
+ 		    regulator_is_supported_voltage(power->vdd, uv,
+ 						   GM20B_DVFS_MAX_UV) <= 0)
+ 			break;
+-		power->dvfs_freq[i] = gm20b_cvb_pll[i].khz * 1000UL;
++		power->dvfs_freq[i] = gm20b_cvb_khz(i) * 1000UL;
+ 		power->dvfs_uv[i] = uv;
++		if (uv == vmin)
++			power->dvfs_fmax_at_vmin = power->dvfs_freq[i];
+ 		nvgpu_log_info(g, "DVFS point %d: %lu kHz at %d uV", i,
+ 			       power->dvfs_freq[i] / 1000UL, uv);
+ 	}
+@@ -194,8 +258,8 @@ static void gm20b_mainline_dvfs_init(struct gk20a *g,
+ 		nvgpu_warn(g, "DVFS: no usable GPU clock points, GPU clock fixed");
+ 		return;
+ 	}
+-	nvgpu_info(g, "DVFS: GPU speedo %d (ID %d), %lu-%lu MHz at %d-%d mV",
+-		   speedo, speedo_id, power->dvfs_freq[0] / 1000000UL,
++	nvgpu_info(g, "DVFS: GPU speedo %d (ID %d),%s %lu-%lu MHz at %d-%d mV",
++		   speedo, speedo_id, nvgpu_gpu_max_khz ? " NA mode," : "", power->dvfs_freq[0] / 1000000UL,
+ 		   power->dvfs_freq[power->dvfs_num - 1] / 1000000UL,
+ 		   power->dvfs_uv[0] / 1000,
+ 		   power->dvfs_uv[power->dvfs_num - 1] / 1000);
+@@ -228,6 +292,21 @@ bool gm20b_mainline_dvfs_enabled(struct gk20a *g)
+ 	return gm20b_mainline_dvfs(g) != NULL;
+ }
+ 
++bool gm20b_mainline_na_pll(struct gk20a *g)
++{
++	return nvgpu_gpu_max_khz != 0;
++}
++
++/* For NA mode only: in normal mode nvgpu runs with 0 (unknown), as before. */
++unsigned long gm20b_mainline_fmax_at_vmin(struct gk20a *g)
++{
++	struct gk20a_platform *platform = gk20a_get_platform(dev_from_gk20a(g));
++
++	if (!nvgpu_gpu_max_khz || !platform->mainline_power)
++		return 0;
++	return platform->mainline_power->dvfs_fmax_at_vmin;
++}
++
+ unsigned long gm20b_mainline_dvfs_get_rate(struct gk20a *g)
+ {
+ 	return clk_get_rate(gm20b_mainline_dvfs(g)->gpcclk);
+diff --git a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.h b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.h
+index 2d37beb..623423c 100644
+--- a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.h
++++ b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.h
+@@ -28,6 +28,8 @@ int gk20a_tegra_init_secure_alloc(struct gk20a_platform *platform);
+ #ifdef NVGPU_TEGRA210_MAINLINE_POWER
+ /* GM20B DVFS on mainline Tegra210, without the downstream DVFS framework */
+ bool gm20b_mainline_dvfs_enabled(struct gk20a *g);
++bool gm20b_mainline_na_pll(struct gk20a *g);
++unsigned long gm20b_mainline_fmax_at_vmin(struct gk20a *g);
+ unsigned long gm20b_mainline_dvfs_get_rate(struct gk20a *g);
+ unsigned long gm20b_mainline_dvfs_max_rate(struct gk20a *g);
+ int gm20b_mainline_dvfs_rate_to_mv(struct gk20a *g, unsigned long rate);

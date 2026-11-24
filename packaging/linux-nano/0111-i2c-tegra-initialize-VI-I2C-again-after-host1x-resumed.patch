@@ -1,0 +1,38 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] i2c: tegra: initialize the VI controller again once host1x is up
+
+After a suspend of a Jetson Nano the INA3221 power monitor, on the VI I2C bus, was lost:
+
+  ina3221 2-0040: Unable to reset device
+  ina3221 2-0040: PM: failed to resume async: error -110
+
+The controller's registers are behind host1x, the parent of the VI I2C device. host1x is resumed in
+the normal phase, but tegra_i2c_resume_noirq() initializes the controller before, with host1x's
+clock off: the writes are lost, and the first transfer times out. Initialize it again in the normal
+resume, which runs after the parent's and before the I2C clients'.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/i2c/busses/i2c-tegra.c
++++ b/drivers/i2c/busses/i2c-tegra.c
+@@ -2472,9 +2472,19 @@
+ 
+ static int __maybe_unused tegra_i2c_resume(struct device *dev)
+ {
++	struct tegra_i2c_dev *i2c_dev = dev_get_drvdata(dev);
++	int err = 0;
++
++	/*
++	 * The VI I2C controller is reached through host1x, its parent, which
++	 * was still off in the noirq phase: that initialization was lost.
++	 */
++	if (IS_VI(i2c_dev))
++		err = tegra_i2c_init(i2c_dev);
++
+ 	pm_runtime_put(dev);
+ 
+-	return 0;
++	return err;
+ }
+ 
+ static const struct dev_pm_ops tegra_i2c_pm = {
