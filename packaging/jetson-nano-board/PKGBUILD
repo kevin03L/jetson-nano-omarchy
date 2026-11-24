@@ -8,7 +8,7 @@
 # guard (enabled separately) falls back to a safe boot entry after a boot that does not come up.
 pkgname=jetson-nano-board
 pkgver=1
-pkgrel=7
+pkgrel=8
 pkgdesc="Jetson Nano board policy: GPU clock floor, fan trip point, memory clock raise, memory pressure policy, micro-USB host link"
 arch=(any)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
@@ -38,7 +38,7 @@ sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             'd884e3e5452b9f708479439a69690e0f4062eabcd59cc72014dd08646bb4a8ab'
             '7cb2c7f1c56ee25679cc70cf96b8b8046077a723846b66f82ad316f5e0105b5a'
             'edd1f3360337a77dcc674e72c5c5ba7f0c6237748438317aa1aa6316f0db67be'
-            'bd45df9962f9d0721f81b3f1c5e000a595dcc25f69320f8678770e37a258278f'
+            '43845e0f22abc417bd2b1a0673966ca1378e633de8ec567eb2a18c06c896e9d2'
             '6116e18eeaeeb5097f1408397f4b6afdb09448f86964c1095b2f1ed8ada60c36'
             '66105abfcbe2cf37738b8e6fd64011de4570926715a8e104a320ef55a9ec7ffa'
             'c5f93c4ab975af510b883a6d63332f65f4b3ec9aff639ea656b9f335e640f80a')

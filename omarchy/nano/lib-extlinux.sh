@@ -47,13 +47,13 @@ add_nano_entries() {
     printf '      LINUX /boot/Image-nano\n'
     printf '      INITRD /boot/initramfs-linux-nano.img\n'
     printf '      FDT /boot/%s\n' "$dtb"
-    printf '      APPEND %s modprobe.blacklist=nouveau nano.mode=cuda\n' "$append"
+    printf '      APPEND %s cma=256M modprobe.blacklist=nouveau nano.mode=cuda\n' "$append"
     printf '\nLABEL nano\n'
     printf '      MENU LABEL linux-nano: desktop on nouveau, no CUDA (fallback)\n'
     printf '      LINUX /boot/Image-nano\n'
     printf '      INITRD /boot/initramfs-linux-nano.img\n'
     printf '      FDT /boot/%s\n' "$dtb"
-    printf '      APPEND %s nouveau.config=NvClkMode=0x07 modprobe.blacklist=nvgpu\n' "$append"
+    printf '      APPEND %s cma=256M nouveau.config=NvClkMode=0x07 modprobe.blacklist=nvgpu\n' "$append"
   } >>"$file"
   if grep -q '^DEFAULT ' "$file"; then
     sed -i.bak -e 's/^DEFAULT .*/DEFAULT nano-cuda/' "$file"

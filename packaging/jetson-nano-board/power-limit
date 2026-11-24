@@ -72,11 +72,27 @@ done
 [ -n "$H" ] || { log "no INA3221: static caps only (GPU $(cat $DF/max_freq 2>/dev/null), CPU $(cat $CP/scaling_max_freq))"; exec sleep infinity; }
 for i in 1 2 3; do echo 5000 > $H/shunt${i}_resistor; done
 log "sensor $H; channel 1 = 5 V input"
+BUS=$(readlink -f $H/device/..)
 
-calm=0; low=0
+# After a suspend the sensor's bus is not ready when its driver resumes, and the driver gives up on
+# it until it is bound again ("Unable to reset device", reads fail): create the device again.
+lost=0
+recover() {
+  [ $lost -eq 0 ] && log "sensor does not answer (resume from suspend?): creating it again"
+  lost=1
+  echo 0x40 > "$BUS/delete_device" 2>/dev/null; sleep 1
+  echo ina3221 0x40 > "$BUS/new_device" 2>/dev/null; sleep 1
+  local h; h=$(find_ina)
+  [ -n "$h" ] || { sleep 5; return; }
+  H=$h
+  for i in 1 2 3; do echo 5000 > $H/shunt${i}_resistor; done
+  { read -r v < $H/in1_input; } 2>/dev/null && { lost=0; log "sensor $H is back"; } || sleep 5
+}
+
+calm=0; low=0; v=0; c=0
 exec {tick}<> <(:)   # read -t on an idle pipe: a 50 ms sleep without forking
 while :; do
-  read -r v < $H/in1_input; read -r c < $H/curr1_input
+  { read -r v < $H/in1_input && read -r c < $H/curr1_input; } 2>/dev/null || { recover; low=0; continue; }
   p=$(( v * c / 1000 ))
   [ $gi -lt 0 ] && [ -e $DF/available_frequencies ] && load_gpu_steps
   # act on a sustained condition (3 readings, 150 ms), not on one noisy sample or a brief dip
