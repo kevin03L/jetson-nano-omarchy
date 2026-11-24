@@ -80,6 +80,7 @@ Fait :
   Vulkan 1.3 et OpenGL 4.6 (Zink) sur le GPU, greeter SDDM et bureau Omarchy rendus par le GPU (captures relues).
   Charge 4 cœurs + GPU 240 s : 11,0 W, 5,056 V au minimum, 42 °C, GPU à 921 MHz sans réduction, 227 GFLOPS, 15 Go/s.
 - Le greeter exige `omarchy/nano/nvgpu-desktop.sh` (SDDM ne transmet pas son environnement au compositeur).
-- Aucun EDID ni signal HPD lu le 2026-11-24 (présence d'un écran non vérifiée) ; `echo on > /sys/class/drm/card0-HDMI-A-1/status`
-  force la sortie (1024x768), `video=` sur la ligne de commande la rendrait permanente.
+- HDMI (2026-11-24) : sur la J202 aussi, `MOD_SLEEP*` (PA6) commande `VDD_3V3_HDMI` (schéma, page 13), donc le 5 V HDMI, le DDC et
+  le HPD ; le noyau le met à 0. Mis à 1 par registre : HPD et EDID lus (ASUS VG249QML5A, 1920x1080 à 60 Hz), bureau et `gemm_test`
+  (162 passages, 0 échec) stables 7 min. Entrée d'essai `nano-hdmi` : `regulator-always-on` sur `VDD_HUB_3V3` seul, pas encore démarrée.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
