@@ -97,6 +97,9 @@ stage_3() {
     cp -p "$extlinux" "$extlinux.pre-provision"
   fi
   if is_j202; then
+    # /boot is on the eMMC and the root on the NVMe: an eMMC that does not answer must not stop the
+    # boot in emergency mode, without network (jetson-nano-boot-check reports it at kernel updates)
+    sed -E -i.pre-nofail '\#^[^\#[:space:]]+[[:space:]]+/(mnt/emmc|boot)[[:space:]]# { /nofail/! s/^([^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+)([^[:space:]]+)/\1\2,nofail/ }' /etc/fstab
     printf 'J202: extlinux.conf left as is (entries written by hand, see docs/j202-plan.md)\n'
     grep -E '^(DEFAULT|LABEL)' "$extlinux"
     return 0

@@ -6,6 +6,12 @@
 limit=14680064
 rc=0
 checked=0
+# A separate /boot that is not mounted (an eMMC that did not answer, nofail in fstab) leaves the new
+# kernel and initramfs in the wrong place.
+if grep -qE '^[^#[:space:]]+[[:space:]]+/boot[[:space:]]' /etc/fstab && ! mountpoint -q /boot; then
+  echo "jetson-nano-boot-check: ERROR /boot is in fstab but not mounted. DO NOT REBOOT: mount it and reinstall the kernel package." >&2
+  rc=1
+fi
 for img in /boot/initramfs-linux.img /boot/initramfs-linux-nano.img; do
   [[ -e $img ]] || continue
   checked=$((checked + 1))

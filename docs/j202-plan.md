@@ -86,4 +86,15 @@ Fait :
 - Fermeture de session (2026-11-24) : `user@1001.service` finissait en `timeout`. Cause : `bt-agent` (bluez-tools 0.2.0-6) inverse SIGTERM
   et SIGUSR1 ; il ignore l'arrêt, et Omarchy ne laisse que 5 s à `user@`. `KillSignal=SIGINT` (drop-in `bt-agent.service.d`, installé
   à l'étape 9) règle le problème : essai A/B sur la même session, échec à 5,2 s sans, arrêt propre en 0,13 s avec.
+- `linux-nano` 7.2.11-4 (2026-11-24) : HDMI permanent (`regulator-always-on` sur `VDD_HUB_3V3`), avertissement AGIC (0104) et message
+  Bluetooth -16 (0105) supprimés. `nano-hdmi` (7.2.11-3 + même DTB) : 35 min bureau + CUDA, 590 `gemm_test`, 0 échec. Sur 7.2.11-4,
+  écran détecté aux 3 premiers redémarrages à chaud.
+- Blocage GPU au démarrage (3e redémarrage de 7.2.11-4, rien de semblable aux démarrages précédents) : FECS ne répond pas à sa
+  première commande, puis le pilote s'attend lui-même et `hung_task_panic` redémarre la carte 2 min plus tard. Patch nvgpu 0002 :
+  plus d'auto-attente, remise à zéro de GR et 3 essais. Testé avec une panne simulée (1 échec : récupéré, CUDA OK). Cause inconnue.
+  L'extinction volontaire du GPU (`echo 0 > /dev/nvgpu/igpu0/power`) plante le pilote : pas corrigé, pas utilisé.
+- eMMC muette au démarrage (1 fois sur une dizaine) : HS400 échoue (`mmc_hs400_to_hs200 failed, error -110`), `/boot` non monté, mode
+  secours sans réseau. Correctifs : `no-mmc-hs400` dans le DTS, `nofail` sur `/mnt/emmc` et `/boot`. Pas encore démarrés.
+- Ethernet 100 Mb/s : le partenaire n'annonce pas le gigabit, et en 1000 seul la liaison ne monte pas (EEE, maître/esclave sans effet).
+  La carte a déjà eu 1 Gb/s une fois (7.1.6) : câble, prise ou port à vérifier.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.

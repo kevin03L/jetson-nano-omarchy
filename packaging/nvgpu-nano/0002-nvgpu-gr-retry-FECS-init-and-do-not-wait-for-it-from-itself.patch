@@ -1,0 +1,108 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] nvgpu: gr: retry a failed FECS init, and do not wait for it from itself
+
+Now and then (once in about ten boots of a Jetson Nano, reComputer J1020 v2) the FECS
+firmware boots but never answers the first method of GR init:
+
+  nvgpu: Timeout detected @ gm20b_gr_falcon_ctx_wait_ucode
+  nvgpu: timeout waiting on mailbox=0 value=0x00000000
+
+The timeout handler then dumps the GR registers through an ELPG-protected call, which waits for
+GR to be initialised: the initialising thread waits for itself, every other user of the GPU
+waits for it, and the hung-task panic restarts the board two minutes later:
+
+  nvgpu_gr_wait_initialized <- nvgpu_pg_elpg_disable <- gk20a_gr_debug_dump
+   <- gm20b_gr_falcon_ctx_wait_ucode <- gm20b_gr_falcon_init_ctx_state <- nvgpu_gr_init_support
+
+Dump directly while GR is not initialised (ELPG is not up yet then), and on failure reset the
+GR engine and reload FECS, up to three times, with the steps nvgpu_gr_reset() uses. Tested with
+an injected failure: GR recovers and the desktop and nanoblas' gemm_test run. Why FECS does not
+answer is not known.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/drivers/gpu/nvgpu/common/gr/gr.c b/drivers/gpu/nvgpu/common/gr/gr.c
+index 49f0a27..bd47905 100644
+--- a/drivers/gpu/nvgpu/common/gr/gr.c
++++ b/drivers/gpu/nvgpu/common/gr/gr.c
+@@ -846,7 +846,7 @@ static int gr_init_sm_id_config_early(struct gk20a *g, struct nvgpu_gr *gr)
+ 	return 0;
+ }
+ 
+-static int gr_init_ctxsw_falcon_support(struct gk20a *g, struct nvgpu_gr *gr)
++static int gr_init_ctxsw_falcon_once(struct gk20a *g, struct nvgpu_gr *gr)
+ {
+ 	int err;
+ 
+@@ -871,6 +871,41 @@ static int gr_init_ctxsw_falcon_support(struct gk20a *g, struct nvgpu_gr *gr)
+ 	return 0;
+ }
+ 
++/*
++ * On GM20B the FECS firmware occasionally boots but does not answer its first
++ * method (seen once in about ten boots of a Jetson Nano). Reset the
++ * GR engine and reload the firmware, as nvgpu_gr_reset() does, instead of
++ * leaving the GPU unusable.
++ */
++#define GR_INIT_CTXSW_RETRIES	3
++
++static int gr_init_ctxsw_falcon_support(struct gk20a *g, struct nvgpu_gr *gr)
++{
++	int err = gr_init_ctxsw_falcon_once(g, gr);
++#ifdef CONFIG_NVGPU_ENGINE_RESET
++	int i;
++
++	for (i = 1; (err != 0) && (i <= GR_INIT_CTXSW_RETRIES); i++) {
++		nvgpu_warn(g, "FECS init failed (%d), resetting GR, retry %d",
++			   err, i);
++
++		err = nvgpu_gr_enable_hw_for_instance(g);
++		if (err != 0) {
++			continue;
++		}
++		err = gr_init_sm_id_config_early(g, gr);
++		if (err != 0) {
++			continue;
++		}
++		err = gr_init_ctxsw_falcon_once(g, gr);
++		if (err == 0) {
++			nvgpu_warn(g, "FECS init recovered");
++		}
++	}
++#endif
++	return err;
++}
++
+ static int gr_init_support_impl(struct gk20a *g)
+ {
+ 	struct nvgpu_gr *gr = nvgpu_gr_get_cur_instance_ptr(g);
+diff --git a/drivers/gpu/nvgpu/os/linux/debug.c b/drivers/gpu/nvgpu/os/linux/debug.c
+index ffbfec9..8b13f80 100644
+--- a/drivers/gpu/nvgpu/os/linux/debug.c
++++ b/drivers/gpu/nvgpu/os/linux/debug.c
+@@ -35,6 +35,7 @@
+ #include <nvgpu/power_features/pg.h>
+ #include <nvgpu/nvgpu_init.h>
+ #include <nvgpu/tsg.h>
++#include "common/gr/gr_priv.h"
+ 
+ #include <linux/debugfs.h>
+ #include <linux/seq_file.h>
+@@ -92,6 +93,17 @@ void gk20a_gr_debug_dump(struct gk20a *g)
+ 		.ctx = g,
+ 	};
+ 
++	/*
++	 * The protected call waits for GR to be initialised. From a timeout in
++	 * GR init itself that never happens: the thread would wait for itself.
++	 * ELPG is not up yet at that point, so dump the registers directly.
++	 */
++	if (!g->gr->initialized) {
++		if (g->ops.gr.dump_gr_regs)
++			g->ops.gr.dump_gr_regs(g, &o);
++		return;
++	}
++
+ 	gk20a_gr_dump_regs(g, &o);
+ }
+ 
