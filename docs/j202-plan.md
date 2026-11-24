@@ -121,4 +121,8 @@ Fait :
   GPU 998 MHz (1079 mV) FP32 +7,5 % ; 1075 (1121) +15,8 % ; 1152 (1163) +24,3 %, 3D +13 à +18 %.
   CPU 1555 MHz +5 % ; 1683 (1195 mV) ; 1785 (1227 mV) : stress-ng +21 % et SHA-256 +21 % sur 1479 MHz.
   CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Aucun essai de plusieurs heures, ni de veille, à ces fréquences.
+- Mode de puissance (jetson-nano-board -10) : `jetson-nano-mode` (état, `list`, `set`, `menu`) et « Mode de puissance » dans le lanceur. Éco 918/537 MHz
+  (ventilateur discret), normal 1479/921, performance 1683/1075, maximum 1785/1152 ; gardé au redémarrage ; sans mot de passe pour l'utilisateur
+  devant l'écran (polkit, action limitée à ces quatre modes). Essayé : les 4 modes, menu au clavier, redémarrage. Sur la carte, `nano-oc` est
+  l'entrée par défaut et `nano-cuda` (fréquences d'origine) le secours.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
