@@ -5,9 +5,12 @@ CONFIG_TEGRA210_EMC=m
 # Fan PWM in tree (was a DKMS module).
 CONFIG_PWM_TEGRA=m
 # Real-time clocks: the SoC's (wakes the board from suspend) and the MAX77620 PMIC's. ALARM's config
-# has neither, so there was no wake alarm and no hardware date.
+# has neither, so there was no wake alarm.
 CONFIG_RTC_DRV_TEGRA=m
 CONFIG_RTC_DRV_MAX77686=m
+# Without a battery the PMIC clock restarts in 2000 after a power cut, and it loads after systemd has
+# set a plausible date: leave the system clock to systemd-timesyncd.
+# CONFIG_RTC_HCTOSYS is not set
 # Memory on a 4 GB board with an SD-card root:
 # Multi-gen LRU reclaims by page age and, with min_ttl_ms (set by jetson-nano-board), keeps the
 # working set instead of thrashing (as ChromeOS does on small devices).
