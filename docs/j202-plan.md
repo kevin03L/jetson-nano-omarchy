@@ -66,12 +66,12 @@ Fait :
 - Entrée extlinux `nano` (défaut) : `/boot/Image-nano`, `/boot/initramfs-linux-nano.img` (config `zz-jetson-nano.conf` du projet d'origine), DTB `/boot/j202/nano-j202.dtb`.
 - Résultat : PWM, ventilateur, régulateur GPU et nouveau (GM20B) OK ; trois redémarrages à chaud de suite OK (patch 0103).
 - RAM à 1600 MHz : cboot laisse son DTB (avec les tables EMC entraînées) en RAM à `0x83100000`. Le DTS J202 réserve cette zone ; `images/mainline-kernel/make-j202-nano-dtb.sh` copie la table du code RAM 0 dans le DTB, et `jetson-nano-emc.service` (`emc-raise`) passe à 1600 MHz au démarrage. Copie mémoire : 343 → 771 Mo/s.
-- Reste : nvgpu-nano et le reste de la pile (`provision-nano.sh`, `build-nano-stack.sh`, adapter `lib-extlinux.sh` : entrée `mainline`/`nano` au lieu de `primary`, DTB J202), affichage, profil d'alimentation 12 V.
+- Reste : nvgpu-nano et le reste de la pile (`provision-nano.sh`, `build-nano-stack.sh`, adapter `lib-extlinux.sh` : entrée `mainline`/`nano` au lieu de `primary`, DTB J202), affichage.
 
 - Faire construire et installer le DTB J202 par le PKGBUILD `linux-nano` (via `make-j202-dts.sh`), et pointer `omarchy/nano/lib-extlinux.sh` sur ce DTB et sur la bonne partition racine.
 - `bash omarchy/nano/provision-nano.sh`, puis `bash scripts/build-nano-stack.sh --dry-run`, puis sans `--dry-run`.
 - Le build prend de nombreuses heures sur le Nano ; distcc vers WSL2 (cross aarch64) peut accélérer.
-- Revoir le profil d'alimentation `jetson-nano-board` : il est calibré pour le 5 V du dev kit, la J202 est en 12 V.
+- Alimentation : la J202 convertit le 12 V en 5,11 V / 8 A (schéma Seeed V1.0, page 7) pour `VDD_IN` du module ; mesuré 5,09 V par l'INA3221 du module. Avec le bloc 12 V / 5 A, mettre `SUPPLY_W=20` dans `/etc/jetson-nano/power.conf` (par défaut 10 : GPU limité à 614 MHz). La protection lit le 5 V : elle ne voit pas directement un bloc 12 V trop faible.
 
 ## Phase 3 : validation
 - Entrée `nano-cuda` ; `nano` sert de secours (nouveau).
