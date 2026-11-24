@@ -14,3 +14,7 @@ CONFIG_LRU_GEN_ENABLED=y
 CONFIG_ZRAM_BACKEND_LZ4=y
 CONFIG_ZRAM_BACKEND_ZSTD=y
 CONFIG_ZRAM_DEF_COMP_ZSTD=y
+# GCC plugins are tied to the exact compiler that built the kernel: with them, out-of-tree modules
+# (nvgpu-nano) only build with that same gcc. Off so a cross-built kernel (gcc 14) still takes
+# modules built on the Nano (gcc 16). Only latent_entropy/stackleak-style hardening depends on it.
+# CONFIG_GCC_PLUGINS is not set

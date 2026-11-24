@@ -2,3 +2,4 @@
 *.dts text eol=lf
 *.dtsi text eol=lf
 *.dtb binary
+packaging/** text eol=lf

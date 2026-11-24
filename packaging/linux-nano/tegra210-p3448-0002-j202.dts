@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Seeed reComputer J1020 v2: Jetson Nano 4 GB production module (P3448-0002,
+ * 16 GB eMMC) on the Seeed J202 carrier board.
+ *
+ * Seeed flashes this board with NVIDIA's stock `jetson-nano-emmc` config, so
+ * the board is electrically the NVIDIA eMMC module on a devkit-like carrier.
+ * Mainline's tegra210-p3450-0000.dts describes the SD-card module (P3448-0000)
+ * instead. The differences that matter, applied on top of it:
+ *
+ *  1. SDMMC4 (mmc@700b0600): the module's 8-bit eMMC. Absent from p3450, so
+ *     without it the kernel never sees the eMMC. Same shape as the TX1 module
+ *     (tegra210-p2180.dtsi), which also has its eMMC on SDMMC4.
+ *  2. SDMMC1 (mmc@700b0000): on P3448-0000 this is the module's own microSD
+ *     socket; on P3448-0002 the same pins go to the J202's microSD slot.
+ *     Kept enabled with p3450's card-detect GPIO. UNVERIFIED: compare
+ *     cd-gpios with the Seeed DTB (hardware/inventory-j202.sh dumps it).
+ *  3. SDMMC3 (mmc@700b0400): SDIO for the devkit's M.2 Key E. Seeed says the
+ *     J202's Key E slot only works with Xavier NX modules, so it is disabled.
+ *
+ * Unchanged and expected to work as on p3450: PCIe (pci@2,0 is the module's
+ * own RTL8111 Ethernet; pci@1,0 reaches the J202's M.2 Key M at x1), HDMI
+ * (sor1), DP (sor0 + dpaux), XUSB, PMIC, thermal.
+ *
+ *  4. QSPI (spi@70410000): no NOR flash on the eMMC module; disabled.
+ *
+ * Status: boots ALARM 7.1.6 to a login prompt from the eMMC (2026-11-23),
+ * Ethernet up at 1 Gb/s. Open: PWM (GPU regulator, fan), display.
+ */
+
+#include "tegra210-p3450-0000.dts"
+
+/ {
+	model = "Seeed reComputer J1020 v2 (Jetson Nano eMMC, J202)";
+	compatible = "seeed,recomputer-j1020-v2",
+		     "nvidia,p3449-0000-b00+p3448-0002-b00",
+		     "nvidia,jetson-nano", "nvidia,tegra210";
+
+	aliases {
+		mmc0 = "/mmc@700b0600";
+		mmc1 = "/mmc@700b0000";
+	};
+
+	/* eMMC on the module */
+	mmc@700b0600 {
+		status = "okay";
+		bus-width = <8>;
+		non-removable;
+		vqmmc-supply = <&vdd_1v8>;
+		vmmc-supply = <&vdd_3v3_sys>;
+	};
+
+	/* Key E SDIO: not routed for a Nano module on the J202 */
+	mmc@700b0400 {
+		status = "disabled";
+	};
+
+	/*
+	 * QSPI NOR: the SD-card module boots from it, the eMMC module has none.
+	 * Left enabled, spi-tegra210-quad times out and spi-nor fails with -5
+	 * (seen on the first boot, 2026-11-23).
+	 */
+	spi@70410000 {
+		status = "disabled";
+	};
+};

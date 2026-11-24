@@ -2,6 +2,8 @@
 # plus a small config fragment (config.nano), a Tegra210 EMC patch (0101), a tegra-drm patch
 # (0102) so the display accepts NVIDIA's canonical block-linear modifiers, and an xhci-tegra fix
 # (0103) so a reboot no longer faults (SError) in the USB controller's mailbox interrupt.
+# Fork kevin03L/jetson-nano-omarchy (branch j202): also builds the reComputer J1020 v2 device tree
+# (tegra210-p3448-0002-j202.dtb). scripts/cross-build-linux-nano.sh builds this PKGBUILD on x86.
 #
 # Derived from Arch Linux ARM PKGBUILDs core/linux-aarch64 at commit b7704835b
 # ("core/linux-aarch64 to 7.2.11-1"), maintained by Kevin Mihelich and graysky; patches
@@ -33,7 +35,8 @@ source=("https://www.kernel.org/pub/linux/kernel/v7.x/${_srcname}.tar.xz"
         '0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch'
         'config'
         'config.nano'
-        'linux.preset')
+        'linux.preset'
+        'tegra210-p3448-0002-j202.dts')
 md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          'eea8855ac968044d2669adfe1bf3fce1'
          '328ab847d1a56a5cabbb4779d931a175'
@@ -45,8 +48,9 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          'c5dd8ffe9ce2facdf1299792a29ab887'
          '37d3e6d21af6483ebaaeba00c0fd60a7'
          'cf663e64ec5f265ab09615e5f70c4e64'
-         '189d1202a2a5c5a94388e65a065a9ced'
-         '4a2ba66081ce525b807d7eaffbc5fa75')
+         '8f82a012ff767eef47ac7b05602d306f'
+         '4a2ba66081ce525b807d7eaffbc5fa75'
+         '181ceae24e800bac80d8970ba4cc5973')
 
 prepare() {
   cd $_srcname
@@ -71,6 +75,11 @@ prepare() {
   git apply ../0101-memory-tegra210-emc-vendor-trained-tables.patch
   git apply ../0102-drm-tegra-accept-canonical-NVIDIA-block-linear-modifiers.patch
   git apply ../0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch
+
+  # reComputer J1020 v2 (eMMC module on the Seeed J202): mainline only has the SD-card module
+  # (p3450). Same file as images/mainline-kernel/j202/, built with the other Tegra210 dtbs.
+  install -m644 ../tegra210-p3448-0002-j202.dts arch/arm64/boot/dts/nvidia/
+  echo 'dtb-$(CONFIG_ARCH_TEGRA_210_SOC) += tegra210-p3448-0002-j202.dtb'     >> arch/arm64/boot/dts/nvidia/Makefile
 
   cat "${srcdir}/config" > ./.config
   scripts/kconfig/merge_config.sh -m .config "${srcdir}/config.nano"
