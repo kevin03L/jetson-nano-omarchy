@@ -80,9 +80,10 @@ build_one() {
   if ((have && !REBUILD)); then
     say "$dir $ver: in the repository"
   else
-    # dependencies that are not installed yet; the build order provides our own packages
+    # dependencies that are not installed yet, minus those this PKGBUILD makes itself (gcc13-libs);
+    # the build order provides our other packages
     mapfile -t missing < <(pacman -T $(field depends <<<"$info") $(field makedepends <<<"$info") \
-      $(field checkdepends <<<"$info") || true)
+      $(field checkdepends <<<"$info") | grep -vxFf <(echo "$names") || true)
     if ((DRY)); then
       say "$dir $ver: would build ($(echo $names)); missing dependencies: ${missing[*]:-none}"
       return
