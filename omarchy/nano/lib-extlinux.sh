@@ -33,12 +33,14 @@ edit_extlinux() {
 # primary entry's (after edit_extlinux) plus the driver choice: nano-cuda runs the desktop and
 # CUDA on NVIDIA's nvgpu; nano runs the desktop on nouveau, without CUDA, as the fallback. The
 # primary entry (the distribution kernel) stays as it is. A file that has nano-cuda is unchanged.
+# Usage: add_nano_entries FILE DTB [SOURCE_LABEL]: DTB is relative to /boot; SOURCE_LABEL (default
+# primary) is the entry whose kernel arguments are reused.
 add_nano_entries() {
-  local file="$1" dtb="$2" append
+  local file="$1" dtb="$2" src="${3:-primary}" append
   grep -q '^LABEL nano-cuda$' "$file" && return 0
-  append=$(awk '/^LABEL primary$/ { p = 1 }
+  append=$(awk -v src="$src" '$0 == "LABEL " src { p = 1 }
     p && /^[[:space:]]*APPEND[[:space:]]/ { sub(/^[[:space:]]*APPEND[[:space:]]+/, ""); print; exit }' "$file")
-  [[ -n $append ]] || { echo "add_nano_entries: no APPEND in LABEL primary of $file" >&2; return 1; }
+  [[ -n $append ]] || { echo "add_nano_entries: no APPEND in LABEL $src of $file" >&2; return 1; }
   {
     printf '\nLABEL nano-cuda\n'
     printf '      MENU LABEL linux-nano: desktop and CUDA on nvgpu\n'

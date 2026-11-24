@@ -24,6 +24,12 @@ install_file() {
   install -o root -g root -D -m "$mode" "$FILES_DIR/$src_rel" "/$src_rel"
 }
 
+# reComputer J1020 v2 (eMMC module on the Seeed J202, fork kevin03L/jetson-nano-omarchy): root on
+# the NVMe SSD, /boot on the eMMC, booted by linux-nano (pwm-tegra built in) through its own
+# extlinux entries. The SD-card steps (root=LABEL=ALARM, initramfs-linux.img, pwm-tegra DKMS for
+# the stock kernel) do not apply.
+is_j202() { tr '\0' '\n' < /proc/device-tree/compatible 2>/dev/null | grep -qx 'seeed,recomputer-j1020-v2'; }
+
 as_user() {
   runuser -u "$USER_NAME" -- env -u XDG_RUNTIME_DIR OMARCHY_PATH=/usr/share/omarchy PATH="/usr/share/omarchy/bin:$PATH" "$@" </dev/null
 }
@@ -71,7 +77,11 @@ stage_2() {
   pacman-key --init
   pacman-key --populate archlinuxarm
   pacman -Syu --noconfirm
-  pacman -S --needed --noconfirm base-devel dkms linux-aarch64-headers
+  if is_j202; then
+    pacman -S --needed --noconfirm base-devel
+  else
+    pacman -S --needed --noconfirm base-devel dkms linux-aarch64-headers
+  fi
 }
 
 stage_3() {
@@ -86,6 +96,11 @@ stage_3() {
   if [[ ! -e "$extlinux.pre-provision" ]]; then
     cp -p "$extlinux" "$extlinux.pre-provision"
   fi
+  if is_j202; then
+    printf 'J202: extlinux.conf left as is (entries written by hand, see docs/j202-plan.md)\n'
+    grep -E '^(DEFAULT|LABEL)' "$extlinux"
+    return 0
+  fi
   edit_extlinux "$extlinux"
   grep -q 'INITRD /boot/initramfs-linux.img' "$extlinux"
   grep -q 'root=LABEL=ALARM' "$extlinux"
@@ -97,6 +112,10 @@ stage_4() {
   local src
   local package_version
   printf 'stage 4: pwm-tegra DKMS for the stock kernel (the GPU voltage regulator needs it)\n'
+  if is_j202; then
+    printf 'J202: skipped, linux-nano has pwm-tegra\n'
+    return 0
+  fi
   kver_pkg="$(pacman -Q linux-aarch64 | awk '{print $2}' | sed 's/-[^-]*$//')"
   src="/usr/src/pwm-tegra-$kver_pkg"
   mkdir -p "$src"

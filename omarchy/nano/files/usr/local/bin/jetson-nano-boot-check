@@ -2,12 +2,23 @@
 # Fail loudly when an update leaves the Jetson Nano unbootable or without its GPU.
 # L4T U-Boot loads the initramfs into a 14 MiB window below the kernel, and Arch
 # Linux ARM builds no pwm-tegra, which the GPU voltage regulator needs.
+# Checks every initramfs the boot entries can use (linux-aarch64 and linux-nano).
 limit=14680064
 rc=0
-img=/boot/initramfs-linux.img
-size=$(stat -c %s "$img" 2>/dev/null || echo 0)
-if (( size == 0 || size >= limit )); then
-  echo "jetson-nano-boot-check: ERROR $img is $size bytes, limit $limit. DO NOT REBOOT." >&2
+checked=0
+for img in /boot/initramfs-linux.img /boot/initramfs-linux-nano.img; do
+  [[ -e $img ]] || continue
+  checked=$((checked + 1))
+  size=$(stat -c %s "$img" 2>/dev/null || echo 0)
+  if (( size == 0 || size >= limit )); then
+    echo "jetson-nano-boot-check: ERROR $img is $size bytes, limit $limit. DO NOT REBOOT." >&2
+    rc=1
+  else
+    echo "jetson-nano-boot-check: $img $size bytes, under $limit. OK."
+  fi
+done
+if (( checked == 0 )); then
+  echo "jetson-nano-boot-check: ERROR no initramfs in /boot. DO NOT REBOOT." >&2
   rc=1
 fi
 for k in /usr/lib/modules/*/; do
@@ -16,5 +27,4 @@ for k in /usr/lib/modules/*/; do
     echo "jetson-nano-boot-check: WARNING no pwm-tegra for ${k%/}; the GPU will not start on that kernel." >&2
   fi
 done
-(( rc == 0 )) && echo "jetson-nano-boot-check: initramfs $size bytes, under $limit. OK."
 exit $rc

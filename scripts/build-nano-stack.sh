@@ -140,13 +140,22 @@ pacman -Sy
 if ((BOOT)); then
   # shellcheck source=../omarchy/nano/lib-extlinux.sh
   . "$here/omarchy/nano/lib-extlinux.sh"
-  live=/boot/tegra210-p3448-0002-p3449-0000-b00.dtb
-  nano_dtb=/boot/tegra210-p3448-0002-p3449-0000-b00-nano.dtb
+  if tr '\0' '\n' < /proc/device-tree/compatible | grep -qx 'seeed,recomputer-j1020-v2'; then
+    # reComputer J1020 v2: the J202 DTB with cboot's EMC tables (make-j202-nano-dtb.sh), and the
+    # kernel arguments of the hand-written linux-nano entry (LABEL nano-plain, NVMe root)
+    live=/boot/j202/nano-j202.dtb
+    nano_dtb=/boot/j202/nano-j202-cuda.dtb
+    src_label=nano-plain
+  else
+    live=/boot/tegra210-p3448-0002-p3449-0000-b00.dtb
+    nano_dtb=/boot/tegra210-p3448-0002-p3449-0000-b00-nano.dtb
+    src_label=primary
+  fi
   [[ -f $live ]] || die "no $live (the card builder copies the board's device tree there)"
   pacman -S --needed --noconfirm dtc
   bash "$here/images/mainline-kernel/make-nano-dtb.sh" "$live" "$nano_dtb"
   [[ -f $EXTLINUX.pre-nano ]] || cp -p "$EXTLINUX" "$EXTLINUX.pre-nano"
-  add_nano_entries "$EXTLINUX" "$(basename "$nano_dtb")"
+  add_nano_entries "$EXTLINUX" "${nano_dtb#/boot/}" "$src_label"
   say "boot entries:"; grep -E '^(DEFAULT|LABEL)' "$EXTLINUX"
 fi
 say "done: reboot to start the nano-cuda entry (desktop and CUDA on nvgpu)"
