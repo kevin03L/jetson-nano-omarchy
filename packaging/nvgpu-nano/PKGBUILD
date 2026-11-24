@@ -7,23 +7,24 @@
 # linux-nvgpu commit cd6890c (the GPC clock registered without a device: a clock-framework /
 # runtime-PM deadlock with pwm-tegra hung boots), carried here until it is in the fork. 0002 retries
 # a failed FECS firmware start instead of hanging until the hung-task panic; 0003 lets the GPU be
-# powered off and on again; 0004 adds the steps of NVIDIA's rail sequence that the port left out.
+# powered off and on again; 0004 adds the steps of NVIDIA's rail sequence that the port left out; 0005
+# keeps devfreq's statistics right.
 #
 # Boot modes: nouveau and nvgpu both bind the GPU. The CUDA boot entry blacklists nouveau
 # (modprobe.blacklist=nouveau nano.mode=cuda) and nvgpu loads by its device-tree alias; the
 # nouveau entry must blacklist nvgpu (modprobe.blacklist=nvgpu).
 pkgname=nvgpu-nano
-_kernver=7.2.11-4-nano-ARCH
+_kernver=7.2.11-5-nano-ARCH
 _nvgpu=b2e06416fca6bc40925d3e8cb3dba4033778e555
 _nvoot=9ca0e7c617c1648a21033bf2e9f90f9789fb6379
 pkgver=36.4.20261121
-pkgrel=5
+pkgrel=6
 pkgdesc="NVIDIA nvgpu and nvmap kernel drivers for the Jetson Nano GPU on linux-nano"
 arch=(aarch64)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=(GPL-2.0-only)
-depends=('linux-nano=7.2.11-4' nvidia-l4t-gm20b-firmware nvidia-l4t-r36 mesa)
-makedepends=('linux-nano-headers=7.2.11-4' git bc)
+depends=('linux-nano=7.2.11-5' nvidia-l4t-gm20b-firmware nvidia-l4t-r36 mesa)
+makedepends=('linux-nano-headers=7.2.11-5' git bc)
 options=(!strip !debug)
 source=("linux-nvgpu::git+https://github.com/Kristianaaron/linux-nvgpu.git#commit=$_nvgpu"
         "linux-nv-oot::git+https://github.com/Kristianaaron/linux-nv-oot.git#commit=$_nvoot"
@@ -33,7 +34,8 @@ source=("linux-nvgpu::git+https://github.com/Kristianaaron/linux-nvgpu.git#commi
         0001-nvgpu-gm20b-register-the-GPC-clock-without-a-device.patch
         0002-nvgpu-gr-retry-FECS-init-and-do-not-wait-for-it-from-itself.patch
         0003-nvgpu-gr-rebuild-the-ctxsw-ucode-after-a-forced-power-off.patch
-        0004-nvgpu-gm20b-power-the-GPU-rail-as-L4T-does.patch)
+        0004-nvgpu-gm20b-power-the-GPU-rail-as-L4T-does.patch
+        0005-nvgpu-scale-report-the-rate-of-a-duplicate-request.patch)
 sha256sums=('SKIP'
             'SKIP'
             'd8f88234ce72e53148cbba238dd7443816d9bf932a1eebdc4306e5d88b1f74bc'
@@ -42,7 +44,8 @@ sha256sums=('SKIP'
             '9c35bbb1eabadd878378ed143cf236f3d95884b4bf532dc5c76e2d17da2448c2'
             '888d0756d8a5cd8cb02e0e2d2a90c2f64871200460603298222d6b82cff6ba3a'
             '19bf9c171e90649ad0162ff2e22c9a0c4530109856403d6a9eb066f9eeae01d6'
-            'ddd9acc2ef09dfd777d75c8204c8a0d633e834500e6d5e7d8e136984cf93eb17')
+            'ddd9acc2ef09dfd777d75c8204c8a0d633e834500e6d5e7d8e136984cf93eb17'
+            '434f380d1bcf61adadf64f4ecca82fbfd4ff0292d9f8ca1181d4ea9145f8ff9b')
 
 _kdir=/usr/lib/modules/$_kernver/build
 
@@ -51,6 +54,7 @@ prepare() {
   git -C linux-nvgpu apply "$srcdir/0002-nvgpu-gr-retry-FECS-init-and-do-not-wait-for-it-from-itself.patch"
   git -C linux-nvgpu apply "$srcdir/0003-nvgpu-gr-rebuild-the-ctxsw-ucode-after-a-forced-power-off.patch"
   git -C linux-nvgpu apply "$srcdir/0004-nvgpu-gm20b-power-the-GPU-rail-as-L4T-does.patch"
+  git -C linux-nvgpu apply "$srcdir/0005-nvgpu-scale-report-the-rate-of-a-duplicate-request.patch"
 }
 
 build() {

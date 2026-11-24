@@ -4,7 +4,8 @@
 # (0103) so a reboot no longer faults (SError) in the USB controller's mailbox interrupt, and two
 # fixes for errors logged at every boot: the AGIC's smp_processor_id() (0104) and a Bluetooth
 # query that older Intel controllers refuse (0105). 0106 lets nvgpu-nano clamp the GPU rail,
-# 0107 and 0109 make suspend (SC7) work, 0108 quiets a USB supply warning.
+# 0107 and 0109 make suspend (SC7) work, 0108 quiets a USB supply warning, 0110 fixes a workqueue stall
+# after a suspend (the GPU's frequency stayed stuck).
 # Fork kevin03L/jetson-nano-omarchy (branch j202): also builds the reComputer J1020 v2 device tree
 # (tegra210-p3448-0002-j202.dtb). scripts/cross-build-linux-nano.sh builds this PKGBUILD on x86.
 #
@@ -20,7 +21,7 @@ pkgbase=linux-nano
 _srcname=linux-7.2
 _desc="NVIDIA Jetson Nano (Tegra210), based on ALARM linux-aarch64"
 pkgver=7.2.11
-pkgrel=4
+pkgrel=5
 arch=('aarch64')
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=('GPL-2.0-only')
@@ -42,6 +43,7 @@ source=("https://www.kernel.org/pub/linux/kernel/v7.x/${_srcname}.tar.xz"
         '0107-memory-tegra210-emc-suspend-at-204-MHz.patch'
         '0108-phy-tegra-xusb-tegra210-do-not-disable-a-supply-others-enabled.patch'
         '0109-iommu-tegra-smmu-restore-the-registers-after-suspend.patch'
+        '0110-workqueue-no-pwq-pending-without-work-after-a-thaw.patch'
         'config'
         'config.nano'
         'linux.preset'
@@ -62,6 +64,7 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          '29664120f9bd09a8db639c137ed7d5fa'
          'ed805836f22552ead7c34d2ee228c6b1'
          'dbee68636d90838375c38da60ab1391e'
+         '19cda849b09baa6a52c78d1836eb4ab1'
          'cf663e64ec5f265ab09615e5f70c4e64'
          'a02844d3fc28f3d1f38ff78c29bb08a6'
          '4a2ba66081ce525b807d7eaffbc5fa75'
@@ -96,6 +99,7 @@ prepare() {
   git apply ../0107-memory-tegra210-emc-suspend-at-204-MHz.patch
   git apply ../0108-phy-tegra-xusb-tegra210-do-not-disable-a-supply-others-enabled.patch
   git apply ../0109-iommu-tegra-smmu-restore-the-registers-after-suspend.patch
+  git apply ../0110-workqueue-no-pwq-pending-without-work-after-a-thaw.patch
 
   # reComputer J1020 v2 (eMMC module on the Seeed J202): mainline only has the SD-card module
   # (p3450). Same file as images/mainline-kernel/j202/, built with the other Tegra210 dtbs.

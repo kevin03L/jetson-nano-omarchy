@@ -12,7 +12,7 @@ the board, with the log named) or **inferred**. Nothing here is supported by NVI
 | Area | State |
 |---|---|
 | Omarchy 4.5 desktop (Hyprland, SDDM) | works on **one driver stack**: Mesa Zink on NVIDIA's R36 Vulkan driver over nvgpu; 34 of 36 Omarchy apps open and close cleanly ([docs/cuda-feasibility.md §22](docs/cuda-feasibility.md)) |
-| Kernel `linux-nano` 7.2.11-4 | ALARM `linux-aarch64` + Tegra210 config, MGLRU, zram (zstd); warm reboots no longer crash in the XUSB driver (patch 0103) |
+| Kernel `linux-nano` 7.2.11-5 | ALARM `linux-aarch64` + Tegra210 config, MGLRU, zram (zstd); warm reboots no longer crash in the XUSB driver (patch 0103) |
 | NVIDIA nvgpu + nvmap (L4T R36) | packaged (`nvgpu-nano`), loads at boot without workarounds (GPC clock deadlock fixed); DVFS 76.8 to 921.6 MHz |
 | CUDA | **CUDA 12.9** compiler and runtime (`cuda-nano`), the last release that targets sm_53; `nvcc` works end to end with `gcc13` |
 | cuBLAS | `nanoblas`: the cuBLAS API subset applications use (GEMM in FP32/FP16/BF16, batched GEMM and TRSM), built for sm_53, since NVIDIA's math libraries ship no sm_53 code |

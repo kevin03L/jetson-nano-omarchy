@@ -1,0 +1,29 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] nvgpu: scale: report the rate of a duplicate request
+
+simple_ondemand asks for an arbitrary frequency; the target callback rounds it to a rate of the
+GPU's table and returns that rate in *freq, which devfreq accounts. When the rounded rate is the
+one already set, the callback returned early with *freq still unrounded, so devfreq looked up a
+rate that is not in its table, logged
+
+  devfreq 57000000.gpu: Couldn't update frequency transition information.
+
+and left its time-in-state statistics wrong.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/gpu/nvgpu/os/linux/scale.c
++++ b/drivers/gpu/nvgpu/os/linux/scale.c
+@@ -290,8 +290,11 @@
+ 	rounded_rate = platform->clk_round_rate(dev, local_freq);
+ 
+ 	/* Check for duplicate request */
+-	if (rounded_rate == g->last_freq)
++	if (rounded_rate == g->last_freq) {
++		/* devfreq accounts *freq, and knows only the table's rates */
++		*freq = rounded_rate;
+ 		return 0;
++	}
+ 
+ 	if (g->ops.clk.get_rate(g, CTRL_CLK_DOMAIN_GPCCLK) == rounded_rate)
+ 		*freq = rounded_rate;

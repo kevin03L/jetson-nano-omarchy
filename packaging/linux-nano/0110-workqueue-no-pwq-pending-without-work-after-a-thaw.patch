@@ -1,0 +1,63 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] workqueue: do not leave a pwq pending without work after a thaw
+
+After some suspends of a Jetson Nano the GPU stayed at whatever frequency it had, at full load too:
+devfreq's monitor never ran again. Its work item was inactive on a workqueue with nothing active:
+
+  workqueue devfreq_wq: flags=0x4000e
+    pwq 16: cpus=0-3 flags=0x4 nice=0 active=0 refcnt=2
+      inactive: devfreq_monitor
+
+devfreq_wq is unbound and freezable, with max_active 1. While it is frozen max_active is 0, so the
+monitor's work item, queued by its timer, becomes inactive and its pwq goes on the node's
+pending_pwqs. devfreq_suspend() then cancels the item, but the pwq stays on the list. That is
+normally harmless: the next pwq_dec_nr_active() drops a pwq without inactive work. Here nothing is
+active, so nothing calls it; pwq_tryinc_nr_active() sees the pwq pending and refuses, for ever, to
+activate the next item.
+
+When max_active goes up again, drop such a pwq from pending_pwqs. It is done under the pool lock
+together with the attempt to activate, so an item queued later finds a clean pwq.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/kernel/workqueue.c
++++ b/kernel/workqueue.c
+@@ -5735,6 +5735,29 @@
+ 	return 0;
+ }
+ 
++/*
++ * Take @pwq off its node's pending_pwqs when it has no inactive work item left.
++ *
++ * While a freezable workqueue is frozen its max_active is zero: a queued work
++ * item becomes inactive and its pwq pending. If the item is cancelled before
++ * the thaw, the pwq stays pending with nothing to activate, and as nothing is
++ * active either, no pwq_dec_nr_active() comes to clean it up. The next work
++ * item would see the pwq pending, take its place behind it and never run.
++ */
++static void pwq_drop_stale_pending(struct pool_workqueue *pwq)
++{
++	struct wq_node_nr_active *nna = wq_node_nr_active(pwq->wq, pwq->pool->node);
++
++	lockdep_assert_held(&pwq->pool->lock);
++
++	if (!nna || !list_empty(&pwq->inactive_works))
++		return;
++
++	raw_spin_lock(&nna->lock);
++	list_del_init(&pwq->pending_node);
++	raw_spin_unlock(&nna->lock);
++}
++
+ /**
+  * wq_adjust_max_active - update a wq's max_active to the current setting
+  * @wq: target workqueue
+@@ -5792,6 +5815,8 @@
+ 			if (pwq_activate_first_inactive(pwq, true)) {
+ 				activated = true;
+ 				kick_pool(pwq->pool);
++			} else {
++				pwq_drop_stale_pending(pwq);
+ 			}
+ 			raw_spin_unlock_irqrestore(&pwq->pool->lock, irq_flags);
+ 		}
