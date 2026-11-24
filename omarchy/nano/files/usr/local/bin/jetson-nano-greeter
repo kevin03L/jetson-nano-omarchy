@@ -1,0 +1,6 @@
+#!/bin/sh
+# SDDM greeter compositor. SDDM does not pass its own environment on to the compositor, so the
+# nvgpu variables (nano.mode=cuda only) are read from nvgpu-nano's environment generator.
+for kv in $(/usr/lib/systemd/system-environment-generators/60-nvgpu-nano-env 2>/dev/null); do export "$kv"; done
+export AQ_DRM_DEVICES=/dev/dri/by-path/platform-50000000.host1x-card
+exec start-hyprland -- --config /usr/share/sddm/hyprland.lua

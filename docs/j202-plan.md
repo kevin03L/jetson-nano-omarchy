@@ -76,4 +76,10 @@ Fait :
 ## Phase 3 : validation
 - Entrée `nano-cuda` ; `nano` sert de secours (nouveau).
 - `/usr/lib/nanoblas/gemm_test` doit afficher que tous les tests passent ; vérifier aussi un `deviceQuery`.
+- Mesuré le 2026-11-24 sur `nano-cuda` (7.2.11-3) : redémarrage à chaud sans incident, nvgpu chargé, `gemm_test` 0 échec,
+  Vulkan 1.3 et OpenGL 4.6 (Zink) sur le GPU, greeter SDDM et bureau Omarchy rendus par le GPU (captures relues).
+  Charge 4 cœurs + GPU 240 s : 11,0 W, 5,056 V au minimum, 42 °C, GPU à 921 MHz sans réduction, 227 GFLOPS, 15 Go/s.
+- Le greeter exige `omarchy/nano/nvgpu-desktop.sh` (SDDM ne transmet pas son environnement au compositeur).
+- Aucun EDID ni signal HPD lu le 2026-11-24 (présence d'un écran non vérifiée) ; `echo on > /sys/class/drm/card0-HDMI-A-1/status`
+  force la sortie (1024x768), `video=` sur la ligne de commande la rendrait permanente.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
