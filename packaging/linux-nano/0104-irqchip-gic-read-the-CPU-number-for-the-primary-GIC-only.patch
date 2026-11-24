@@ -1,0 +1,37 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] irqchip/gic: read the CPU number for the primary GIC only
+
+gic_cpu_init() calls smp_processor_id() up front but uses it only to set up the CPU map of the
+primary GIC. A secondary GIC, such as Tegra210's AGIC, is set up from a platform driver probe,
+in preemptible context, so with CONFIG_DEBUG_PREEMPT every boot logs
+
+  BUG: using smp_processor_id() in preemptible [00000000] code: (udev-worker)/423
+  ...
+   gic_cpu_init+0x2c/0x100
+   gic_init_bases+0xcc/0x1e0
+   gic_of_init_child+0x84/0x160
+   gic_probe+0x114/0x1fc
+
+Read it where it is used. The primary GIC is initialised with preemption disabled, as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/irqchip/irq-gic.c
++++ b/drivers/irqchip/irq-gic.c
+@@ -488,7 +488,7 @@ static int gic_cpu_init(struct gic_chip_data *gic)
+ {
+ 	void __iomem *dist_base = gic_data_dist_base(gic);
+ 	void __iomem *base = gic_data_cpu_base(gic);
+-	unsigned int cpu_mask, cpu = smp_processor_id();
++	unsigned int cpu_mask, cpu;
+ 	int i;
+ 
+ 	/*
+@@ -500,6 +500,7 @@ static int gic_cpu_init(struct gic_chip_data *gic)
+ 		/*
+ 		 * Get what the GIC says our CPU mask is.
+ 		 */
++		cpu = smp_processor_id();
+ 		if (WARN_ON(cpu >= NR_GIC_CPU_IF))
+ 			return -EINVAL;
+ 

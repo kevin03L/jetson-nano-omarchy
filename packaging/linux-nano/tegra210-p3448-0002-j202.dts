@@ -24,9 +24,12 @@
  *
  *  4. QSPI (spi@70410000): no NOR flash on the eMMC module; disabled.
  *
+ *  5. VDD_HUB_3V3 (GPIO PA6, the module's MOD_SLEEP* pin) stays on: on the
+ *     J202 it also gates the HDMI connector's supply.
+ *
  * Status: linux-nano 7.2.11 boots it from the NVMe root (2026-11-24): PWM fan,
  * GPU regulator and nouveau up, EMC at 1600 MHz with cboot's trained tables
- * (make-j202-nano-dtb.sh). Open: display (no crtc), Ethernet sometimes 100 Mb/s.
+ * (make-j202-nano-dtb.sh). HDMI works with 5.
  */
 
 #include "tegra210-p3450-0000.dts"
@@ -77,5 +80,15 @@
 	 */
 	spi@70410000 {
 		status = "disabled";
+	};
+
+	/*
+	 * MOD_SLEEP* (PA6) switches VDD_3V3_HDMI on the J202 (schematic sheet
+	 * 13): HDMI 5 V, the DDC level shifter and hot-plug detect. Nothing
+	 * uses this regulator, so the kernel would turn it off at boot and the
+	 * monitor would never be detected.
+	 */
+	regulator-vdd-hub-3v3 {
+		regulator-always-on;
 	};
 };

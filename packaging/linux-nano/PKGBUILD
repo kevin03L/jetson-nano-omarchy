@@ -1,7 +1,9 @@
 # linux-nano: Arch Linux ARM's linux-aarch64 7.2.11-1 for the NVIDIA Jetson Nano (Tegra210),
 # plus a small config fragment (config.nano), a Tegra210 EMC patch (0101), a tegra-drm patch
 # (0102) so the display accepts NVIDIA's canonical block-linear modifiers, and an xhci-tegra fix
-# (0103) so a reboot no longer faults (SError) in the USB controller's mailbox interrupt.
+# (0103) so a reboot no longer faults (SError) in the USB controller's mailbox interrupt, and two
+# fixes for errors logged at every boot: the AGIC's smp_processor_id() (0104) and a Bluetooth
+# query that older Intel controllers refuse (0105).
 # Fork kevin03L/jetson-nano-omarchy (branch j202): also builds the reComputer J1020 v2 device tree
 # (tegra210-p3448-0002-j202.dtb). scripts/cross-build-linux-nano.sh builds this PKGBUILD on x86.
 #
@@ -17,7 +19,7 @@ pkgbase=linux-nano
 _srcname=linux-7.2
 _desc="NVIDIA Jetson Nano (Tegra210), based on ALARM linux-aarch64"
 pkgver=7.2.11
-pkgrel=3
+pkgrel=4
 arch=('aarch64')
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=('GPL-2.0-only')
@@ -33,6 +35,8 @@ source=("https://www.kernel.org/pub/linux/kernel/v7.x/${_srcname}.tar.xz"
         '0101-memory-tegra210-emc-vendor-trained-tables.patch'
         '0102-drm-tegra-accept-canonical-NVIDIA-block-linear-modifiers.patch'
         '0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch'
+        '0104-irqchip-gic-read-the-CPU-number-for-the-primary-GIC-only.patch'
+        '0105-Bluetooth-btintel-debug-features-are-optional.patch'
         'config'
         'config.nano'
         'linux.preset'
@@ -47,10 +51,12 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          '7672356bfe1db24924dc1ac5734af67c'
          'c5dd8ffe9ce2facdf1299792a29ab887'
          '37d3e6d21af6483ebaaeba00c0fd60a7'
+         'b768f37f7f352bb8728ee89295de2697'
+         '85a05702e52fc6f4229cd15a5a20e7e8'
          'cf663e64ec5f265ab09615e5f70c4e64'
          '8f82a012ff767eef47ac7b05602d306f'
          '4a2ba66081ce525b807d7eaffbc5fa75'
-         '54e74491612a0d1de2a715156729fad4')
+         '26007d211823584fd5dfaf963f74ab94')
 
 prepare() {
   cd $_srcname
@@ -75,6 +81,8 @@ prepare() {
   git apply ../0101-memory-tegra210-emc-vendor-trained-tables.patch
   git apply ../0102-drm-tegra-accept-canonical-NVIDIA-block-linear-modifiers.patch
   git apply ../0103-usb-xhci-tegra-stop-mailbox-and-padctl-IRQs-on-shutdown.patch
+  git apply ../0104-irqchip-gic-read-the-CPU-number-for-the-primary-GIC-only.patch
+  git apply ../0105-Bluetooth-btintel-debug-features-are-optional.patch
 
   # reComputer J1020 v2 (eMMC module on the Seeed J202): mainline only has the SD-card module
   # (p3450). Same file as images/mainline-kernel/j202/, built with the other Tegra210 dtbs.
