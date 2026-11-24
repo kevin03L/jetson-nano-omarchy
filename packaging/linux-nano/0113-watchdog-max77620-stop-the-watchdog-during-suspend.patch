@@ -1,0 +1,63 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] watchdog: max77620: stop the watchdog during suspend
+
+Any suspend of a Jetson Nano longer than the watchdog timeout (64 s with systemd's
+RuntimeWatchdogSec=60s) ended in a reset (PMC power-on reset, PMIC NVERC 0x2) instead of a wake-up:
+the timer goes on in SC7, in spite of the auto clear in sleep mode that the driver sets. Stop it in
+the late suspend phase and start it again in the early resume.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/watchdog/max77620_wdt.c
++++ b/drivers/watchdog/max77620_wdt.c
+@@ -234,6 +234,42 @@
+ 	return devm_watchdog_register_device(dev, wdt_dev);
+ }
+ 
++/*
++ * The auto clear in sleep mode (WDTSLPC) is not enough: on a Jetson Nano the
++ * timer goes on in SC7 and resets the board before it wakes up. Stop it as
++ * late as the I2C controller allows, so that it still covers the suspend.
++ */
++static int max77620_wdt_suspend(struct device *dev)
++{
++	struct max77620_wdt *wdt = dev_get_drvdata(dev);
++
++	if (watchdog_active(&wdt->wdt_dev) ||
++	    watchdog_hw_running(&wdt->wdt_dev))
++		return max77620_wdt_stop(&wdt->wdt_dev);
++
++	return 0;
++}
++
++static int max77620_wdt_resume(struct device *dev)
++{
++	struct max77620_wdt *wdt = dev_get_drvdata(dev);
++	int ret;
++
++	if (!watchdog_active(&wdt->wdt_dev) &&
++	    !watchdog_hw_running(&wdt->wdt_dev))
++		return 0;
++
++	ret = max77620_wdt_ping(&wdt->wdt_dev);
++	if (ret < 0)
++		return ret;
++
++	return max77620_wdt_start(&wdt->wdt_dev);
++}
++
++static const struct dev_pm_ops max77620_wdt_pm_ops = {
++	LATE_SYSTEM_SLEEP_PM_OPS(max77620_wdt_suspend, max77620_wdt_resume)
++};
++
+ static const struct platform_device_id max77620_wdt_devtype[] = {
+ 	{ "max77620-watchdog", (kernel_ulong_t)&max77620_wdt_data },
+ 	{ "max77714-watchdog", (kernel_ulong_t)&max77714_wdt_data },
+@@ -244,6 +280,7 @@
+ static struct platform_driver max77620_wdt_driver = {
+ 	.driver	= {
+ 		.name	= "max77620-watchdog",
++		.pm	= pm_sleep_ptr(&max77620_wdt_pm_ops),
+ 	},
+ 	.probe	= max77620_wdt_probe,
+ 	.id_table = max77620_wdt_devtype,

@@ -2,8 +2,9 @@ From: kevin03L <kevin03L@users.noreply.github.com>
 Subject: [PATCH] clk: tegra: dfll-fcpu: optional CPU clock above the SKU's on Tegra210
 
 clk_tegra124_dfll_fcpu.max_khz= offers the CPU clocks of the voltage table that the chip's SKU leaves
-out: 1683 MHz at 1195 mV on a Jetson Nano (1555.5 MHz at 1162 mV otherwise), NVIDIA's values for the
-Tegra210 SKUs of speedo ID 8. Without the parameter nothing changes.
+out, on a Jetson Nano (1555.5 MHz at 1162 mV otherwise): 1683 MHz at 1195 mV, NVIDIA's values for the
+Tegra210 SKUs of speedo ID 8, and 1785 MHz at 1227 mV, those of the ODN SKU. Without the parameter
+nothing changes: the SKU's clock ends the table.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
@@ -17,17 +18,25 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  #include <linux/init.h>
  #include <linux/of.h>
  #include <linux/platform_device.h>
-@@ -325,6 +326,9 @@
+@@ -278,6 +279,7 @@
+ 		{ 1479000000UL,	{ 1090000, 0, 0 } }, \
+ 		{ 1555500000UL,	{ 1162000, 0, 0 } }, \
+ 		{ 1683000000UL,	{ 1195000, 0, 0 } }, \
++		{ 1785000000UL,	{ 1227000, 0, 0 } }, \
  		{          0UL,	{       0, 0, 0 } }, \
  	}
  
-+/* As the table of the Tegra210 SKUs with 1683 MHz (speedo ID 8) */
-+#define TEGRA210_CPU_OC_MAX_MV	1195
+@@ -325,6 +327,9 @@
+ 		{          0UL,	{       0, 0, 0 } }, \
+ 	}
+ 
++/* NVIDIA's highest for a Tegra210 CPU */
++#define TEGRA210_CPU_OC_MAX_MV	1227
 +
  static struct cvb_table tegra210_cpu_cvb_tables[] = {
  	{
  		.speedo_id = 10,
-@@ -654,8 +658,18 @@
+@@ -654,8 +659,18 @@
  	return 0;
  }
  
@@ -46,7 +55,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  	int process_id, speedo_id, speedo_value, err;
  	struct tegra_dfll_soc_data *soc;
  	const struct dfll_fcpu_data *fcpu_data;
-@@ -695,6 +709,19 @@
+@@ -695,6 +710,19 @@
  
  	soc->max_freq = fcpu_data->cpu_max_freq_table[speedo_id];
  
