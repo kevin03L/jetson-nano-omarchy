@@ -106,4 +106,19 @@ Fait :
   gigabit échoue en 1,3 s (`rxloc`/`rxrem` à 0 ne prouvent rien : ils le sont aussi avec un lien à 1 Gb/s), 3 essais, puis repli à 100. Pareil sans EEE, en maître ou esclave forcé ;
   routeur forcé à 1 Gb/s : plus de lien. La négociation n'utilise que 2 paires, le gigabit les 4 : paires 4-5 ou 7-8 (câble, prise, port).
   Même câble, autre port de la box : 1 Gb/s aussitôt (84 Mo/s par SSH). Port de la box ou contact à cet endroit.
+- 7.2.11-5 et nvgpu-nano -6 (2026-11-24). Endurance : 22 cycles de charge complète (CPU, GPU, NVMe, 3D, veille de 20 s), 0 erreur, sur 7.2.11-4.
+  - Fréquence du GPU bloquée après certaines veilles : une tâche mise en file sur une file gelée puis annulée laisse la file « en attente » et
+    la tâche suivante ne tourne plus jamais (linux-nano 0110, files `WQ_UNBOUND | WQ_FREEZABLE`). Module de test : 2 blocages sur 3 avant, 0 sur 6 après.
+  - Capteur de puissance INA3221 muet après une veille : le contrôleur I2C de la caméra est initialisé avant host1x (0111). 0 erreur après 10 veilles.
+    Le limiteur de puissance recrée aussi le capteur si besoin.
+  - Veille de plus de 64 s : le watchdog du PMIC continuait et redémarrait la carte (0113) ; 150 s : réveil normal (une fois).
+  - Première veille après un démarrage, console série endormie : le micrologiciel (ATF) écrit `BPMP not powered on` sur l'UART A, dont l'horloge
+    est coupée, et attend pour toujours. 4 blocages sur 4 ; 0114 garde l'horloge. **0114 pas encore essayé en veille.**
+  - CMA 256 Mo : plus d'échec d'allocation. Démarrage à froid validé (7.2.11-5, GPU 998 MHz). `nano-prev` (7.2.11-4) jamais démarré.
+- Fréquences plus hautes, désactivées par défaut (entrée de démarrage séparée `nano-oc` sur la carte) : GPU en mode NA (nvgpu-nano 0006,
+  `nvgpu.gpu_max_khz`), CPU (linux-nano 0112, `clk_tegra124_dfll_fcpu.max_khz` et `nano.cpu_max_khz` pour le limiteur).
+  Essais courts (1 à 4 min par palier, calculs comparés un à un, 0 erreur, alimentation à 5,05 V au minimum) :
+  GPU 998 MHz (1079 mV) FP32 +7,5 % ; 1075 (1121) +15,8 % ; 1152 (1163) +24,3 %, 3D +13 à +18 %.
+  CPU 1555 MHz +5 % ; 1683 (1195 mV) ; 1785 (1227 mV) : stress-ng +21 % et SHA-256 +21 % sur 1479 MHz.
+  CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Aucun essai de plusieurs heures, ni de veille, à ces fréquences.
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
