@@ -60,6 +60,14 @@ Fait :
 - Ensuite, déplacer `/` sur le SSD NVMe.
 
 ## Phase 2 : la pile Nano
+**État au 2026-11-24 : kernel fait.**
+- SSD NVMe formaté (une partition ext4 `NANO_ROOT`), `/` dessus. `/boot` reste sur l'eMMC (U-Boot y lit `extlinux.conf`), monté via `/mnt/emmc` + bind dans `/etc/fstab`.
+- `linux-nano` 7.2.11 compilé en croisé dans WSL2 : `scripts/cross-build-linux-nano.sh` (makepkg Ubuntu + gcc 14 aarch64, 30 min sur 16 cœurs). Plugins GCC coupés (`config.nano`) pour que les modules compilés sur le Nano avec gcc 16 (nvgpu-nano) se chargent. Les outils hôtes des headers sont x86 : les recompiler sur le Nano avant nvgpu-nano.
+- Entrée extlinux `nano` (défaut) : `/boot/Image-nano`, `/boot/initramfs-linux-nano.img` (config `zz-jetson-nano.conf` du projet d'origine), DTB `/boot/j202/nano-j202.dtb`.
+- Résultat : PWM, ventilateur, régulateur GPU et nouveau (GM20B) OK ; trois redémarrages à chaud de suite OK (patch 0103).
+- RAM à 1600 MHz : cboot laisse son DTB (avec les tables EMC entraînées) en RAM à `0x83100000`. Le DTS J202 réserve cette zone ; `images/mainline-kernel/make-j202-nano-dtb.sh` copie la table du code RAM 0 dans le DTB, et `jetson-nano-emc.service` (`emc-raise`) passe à 1600 MHz au démarrage. Copie mémoire : 343 → 771 Mo/s.
+- Reste : nvgpu-nano et le reste de la pile (`provision-nano.sh`, `build-nano-stack.sh`, adapter `lib-extlinux.sh` : entrée `mainline`/`nano` au lieu de `primary`, DTB J202), affichage, profil d'alimentation 12 V.
+
 - Faire construire et installer le DTB J202 par le PKGBUILD `linux-nano` (via `make-j202-dts.sh`), et pointer `omarchy/nano/lib-extlinux.sh` sur ce DTB et sur la bonne partition racine.
 - `bash omarchy/nano/provision-nano.sh`, puis `bash scripts/build-nano-stack.sh --dry-run`, puis sans `--dry-run`.
 - Le build prend de nombreuses heures sur le Nano ; distcc vers WSL2 (cross aarch64) peut accélérer.

@@ -24,8 +24,9 @@
  *
  *  4. QSPI (spi@70410000): no NOR flash on the eMMC module; disabled.
  *
- * Status: boots ALARM 7.1.6 to a login prompt from the eMMC (2026-11-23),
- * Ethernet up at 1 Gb/s. Open: PWM (GPU regulator, fan), display.
+ * Status: linux-nano 7.2.11 boots it from the NVMe root (2026-11-24): PWM fan,
+ * GPU regulator and nouveau up, EMC at 1600 MHz with cboot's trained tables
+ * (make-j202-nano-dtb.sh). Open: display (no crtc), Ethernet sometimes 100 Mb/s.
  */
 
 #include "tegra210-p3450-0000.dts"
@@ -39,6 +40,20 @@
 	aliases {
 		mmc0 = "/mmc@700b0600";
 		mmc1 = "/mmc@700b0000";
+	};
+
+	/*
+	 * cboot trains the DRAM on every boot and leaves its own kernel device
+	 * tree, with the trained EMC tables, in RAM at 0x83100000. L4T U-Boot
+	 * loads ours at 0x83000000 and the initrd at 0x83200000, so that blob
+	 * survives until the kernel starts. Keep it (no-map: readable through
+	 * /dev/mem with STRICT_DEVMEM) so its EMC tables can be used.
+	 */
+	reserved-memory {
+		cboot-dt@83100000 {
+			reg = <0x0 0x83100000 0x0 0x100000>;
+			no-map;
+		};
 	};
 
 	/* eMMC on the module */

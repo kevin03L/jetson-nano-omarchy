@@ -50,7 +50,7 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          'cf663e64ec5f265ab09615e5f70c4e64'
          '8f82a012ff767eef47ac7b05602d306f'
          '4a2ba66081ce525b807d7eaffbc5fa75'
-         '181ceae24e800bac80d8970ba4cc5973')
+         '54e74491612a0d1de2a715156729fad4')
 
 prepare() {
   cd $_srcname
