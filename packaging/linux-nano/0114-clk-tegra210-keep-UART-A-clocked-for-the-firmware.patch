@@ -1,0 +1,26 @@
+From: kevin03L <kevin03L@users.noreply.github.com>
+Subject: [PATCH] clk: tegra210: keep UART A clocked for the secure firmware
+
+The first suspend after a boot of a Jetson Nano never came back, unless the kernel console stayed
+awake (console_suspend=N); later suspends were fine. The L4T secure firmware (ATF) has its console on
+UART A and prints once, at its first SC7 entry,
+
+  ERROR:   BPMP not powered on
+
+but the serial driver has just turned the UART's clock off for the suspend: the firmware waits for
+ever for the transmitter. Keep the clock on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/drivers/clk/tegra/clk-tegra210.c
++++ b/drivers/clk/tegra/clk-tegra210.c
+@@ -3549,7 +3549,8 @@
+ };
+ 
+ static struct tegra_clk_init_table init_table[] __initdata = {
+-	{ TEGRA210_CLK_UARTA, TEGRA210_CLK_PLL_P, 408000000, 0 },
++	/* The secure firmware's console: it prints on the way into SC7 */
++	{ TEGRA210_CLK_UARTA, TEGRA210_CLK_PLL_P, 408000000, 1 },
+ 	{ TEGRA210_CLK_UARTB, TEGRA210_CLK_PLL_P, 408000000, 0 },
+ 	{ TEGRA210_CLK_UARTC, TEGRA210_CLK_PLL_P, 408000000, 0 },
+ 	{ TEGRA210_CLK_UARTD, TEGRA210_CLK_PLL_P, 408000000, 0 },
