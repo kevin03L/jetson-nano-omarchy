@@ -131,7 +131,7 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 - Aucun essai de plusieurs heures aux fréquences Performance et Maximum.
 - Réveil de veille au clavier ou au bouton : pas essayé.
 - Pas de branchement HDMI à chaud ; brancher l'écran avant le démarrage.
-- L'extinction n'est pas une vraie coupure d'alimentation.
+- Après une extinction, la carte repart en rebranchant le 12 V ou par une alarme de l'horloge ; le bouton d'alimentation n'est pas essayé.
 - L'installation avec les paquets de la release n'a pas été refaite depuis une carte vierge.
 - Pas de cuFFT, cuDNN ni TensorRT : NVIDIA ne les fournit plus pour ce GPU avec CUDA 12.
 

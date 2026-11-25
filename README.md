@@ -130,7 +130,7 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 - No test of several hours at the Performance and Maximum clocks.
 - Wake from suspend by keyboard or button: not tested.
 - No HDMI hot-plug; connect the monitor before booting.
-- Power off does not really cut the power.
+- After a power off, the board starts again with the 12 V supply (unplug and plug) or an RTC alarm; the power button header is not tested.
 - The install from the release packages has not been repeated from a blank board.
 - No cuFFT, cuDNN or TensorRT: NVIDIA no longer ships them for this GPU with CUDA 12.
 

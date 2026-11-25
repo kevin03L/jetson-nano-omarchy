@@ -54,5 +54,8 @@ dtc -q -I dtb -O dts -o "$tmp/in.dts" "$in"
 } > "$tmp/out.dts"
 dtc -q -I dts -O dtb -o "$tmp/out.dtb" "$tmp/out.dts"
 fdtget -l "$tmp/out.dtb" "$emc/$node" | grep -q 1600000 || die "1600 MHz table missing in the result"
+# The PMIC cuts the power at power-off (mainline only halts); its RTC alarm can power the board on.
+fdtput "$tmp/out.dtb" /i2c@7000d000/pmic@3c system-power-controller
+fdtget -p "$tmp/out.dtb" /i2c@7000d000/pmic@3c | grep -qx system-power-controller || die "system-power-controller not set"
 install -Dm644 "$tmp/out.dtb" "$out"
 echo "wrote $out: $(fdtget -l "$out" "$emc/$node" | tr '\n' ' ')"

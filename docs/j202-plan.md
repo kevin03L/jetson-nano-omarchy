@@ -139,4 +139,6 @@ Fait :
   vt.global_cursor_default=0 logo.nologo` ; le noyau reste bavard sur la série. Les autres entrées gardent le texte (dépannage).
   Images à fournir dans /usr/share/plymouth/themes/jetson-nano (hors dépôt) : splash.png (1100x350), omarchy.png (400x94), bar-empty.png, bar-full.png (1x1) ;
   puis `plymouth-set-default-theme jetson-nano` et `mkinitcpio -p linux-nano`. Essayé : `nano-oc`, `nano-cuda`, `nano` (nouveau).
-- Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.
+- Extinction réelle (2026-11-25) : `system-power-controller` sur le PMIC (ajouté par `make-j202-nano-dtb.sh`). `SFT_RST_WK` est à 0 et
+  `WK_ALARM1` à 1 (registre 0x42 = 0x5f). `systemctl poweroff` coupe la carte ; l'alarme de rtc0 la rallume à l'heure dite.
+- Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI.
