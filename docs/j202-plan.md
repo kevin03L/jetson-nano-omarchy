@@ -143,7 +143,7 @@ Fait :
   puis `plymouth-set-default-theme jetson-nano` et `mkinitcpio -p linux-nano`. Essayé : `nano-oc`, `nano-cuda`, `nano` (nouveau).
 - Extinction réelle (2026-11-25) : `system-power-controller` sur le PMIC (ajouté par `make-j202-nano-dtb.sh`). `SFT_RST_WK` est à 0 et
   `WK_ALARM1` à 1 (registre 0x42 = 0x5f). `systemctl poweroff` coupe la carte ; l'alarme de rtc0 la rallume à l'heure dite.
-- Arrêt en 1,8 s au lieu de 17 (2026-11-25) : systemd attendait 15 s la console du port micro-USB (`gs_close`) ; jetson-nano-usb-gadget-down la
+- Arrêt en 1,8 s au lieu de 17 (2026-11-25) : systemd attendait 15 s la console du port USB périphérique (USB-C sur la J202, micro-USB sur le kit B01 ; `gs_close`) ; jetson-nano-usb-gadget-down la
   débranche avant. Redémarrage : 54 → 38 s. 12 redémarrages à chaud : 0 reset parasite (défaut du projet d'origine).
 - Noyau précédent gardé (`keep-kernel`, crochets pacman) : modules, module GPU, Image, initramfs, DTB, entrée `nano-prev`. Essayé -5 → -4 → -5.
 - `scripts/j202-root-to-nvme.sh` : racine de l'eMMC vers le NVMe ; essayé sur un disque virtuel seulement.
@@ -157,7 +157,7 @@ Fait :
   1080p30 64 % d'un cœur au lieu de 118 ; 1080p60 91 % au lieu de 208, avec `profile=fast` (sinon 12 images perdues par seconde, aussi en logiciel).
   Essayé : 3 flux à la fois, flux abîmé, 3 veilles en plein décodage, mémoire stable. Chromium décode toujours avec le processeur (rien de changé).
   Pas de H.265, VP9, AV1 ni 10 bits. MPEG-2 720 lignes entrelacé (inexistant en pratique) : erreurs.
-- Décodage vidéo, deuxième version (2026-11-25, vaapi-tegra 2.1, mesa 1.8, `fix-video-dtb.sh`), limites de la première levées :
+- Décodage vidéo, deuxième version (2026-11-25, vaapi-tegra 2.2, mesa 1.8, `fix-video-dtb.sh`), limites de la première levées :
   - pilote réécrit (`packaging/vaapi-tegra/driver`) : H.264, H.265 8 et 10 bits, VP9 (profil 0) et VP8 identiques au logiciel (images B, tranches,
     tuiles, prédiction pondérée, matrices, 854 de large, 1080p, 4K) ; MPEG-2 à 67-70 dB, 720 lignes entrelacé compris. Travaux en file (8), VIC enchaîné
     par le syncpoint. La puce n'a ni AV1, ni VP9 10 bits, ni H.264 10 bits ;
@@ -181,6 +181,8 @@ Fait :
     tant qu'un autre s'en sert ;
   - 4 veilles de 12 s en pleine lecture (mpv sans copie et trois décodages contrôlés) : 38 passages identiques, aucune erreur ;
   - code : 0 avertissement (-Wall -Wextra -Wshadow), 0 erreur AddressSanitizer / UBSan (17 vidéos, 14 flux abîmés), 0 fuite ;
+  - 2.2 (relecture de la PR 7) : NVDEC n'est ouvert qu'avec la preuve de sa dépendance dans le device tree (lien dans `/usr/lib/vaapi-tegra`, que le
+    bac à sable de Firefox laisse voir), paramètres de tranche entiers, délais respectés, état d'une surface sans attente ;
   - essayé : 30 flux abîmés (10 fichiers, tous les codecs), 4 codecs à la fois, 12 arrêts par kill -9, mémoire stable, aller et retour PutImage ;
   - Chromium d'Arch Linux ARM est compilé sans VA-API : il décode avec le processeur.
 - Démarrage en boucle (2026-11-25 au soir, deux fois) : la carte se remettait à zéro pendant que Linux sondait l'eMMC, avec toutes les entrées, ancien
@@ -188,8 +190,9 @@ Fait :
   /boot ; cause exacte non prouvée (HS200 à 200 MHz, ou PLL_C4 qui passe par 1 GHz). `fix-emmc-dtb.sh` (et le DTS, linux-nano -7) : eMMC à 51 MHz sur
   PLL_P, le mode de U-Boot, pour toutes les entrées. Depuis : la même manœuvre et une remise à zéro par le chien de garde du PMIC démarrent.
 - Carte figée à l'arrêt d'une session ou d'un service sur un terminal, puis remise à zéro par le chien de garde (jetson-nano-board -15) : systemd
-  réinitialise `ttyGS0` (console de la prise micro-USB) avant agetty ; si l'hôte ne lit pas le port, il reste dans cette écriture avec le verrou de
-  `/dev/console`, et PID 1 attend ce verrou pour toujours. agetty ouvre maintenant le port lui-même. Reproduit avant, 1 s après.
+  réinitialise `ttyGS0` (console du port USB périphérique, l'USB-C de la J202) avant agetty ; si l'hôte ne lit pas le port, il reste dans cette écriture avec le verrou de
+  `/dev/console`, et PID 1 attend ce verrou pour toujours. agetty ouvre maintenant le port lui-même. Reproduit avant ; après, l'arrêt prend 1,4 s, port relié à un PC et fermé, ou ouvert et lu, et l'invite
+  s'affiche sur le PC.
 - Pile du connecteur RTC 2 broches (J202) : elle alimente la RTC du PMIC (`rtc0`, max77620 ; pas d'autre puce RTC sur les bus I2C). Le noyau ne la lit ni
   ne l'écrit (pilote en module, RTC_HCTOSYS et RTC_SYSTOHC absents) : elle restait en 2000. jetson-nano-board -18 (`rtc-clock`) : heure prise au
   démarrage quand elle est plus récente, écrite une fois synchronisée, chaque heure et à l'arrêt. Le PMIC charge la pile à 2,5 V à chaque mise sous

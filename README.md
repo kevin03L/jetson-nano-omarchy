@@ -15,7 +15,7 @@ A research project, not supported by NVIDIA, Seeed or Omarchy.
 
 ## Status
 
-Tested on one board, release `j202-v1.2` (November 2026).
+Tested on one board, release `j202-v1.2.1` (November 2026).
 
 | Area | State |
 |---|---|
@@ -140,7 +140,7 @@ flowchart LR
 | Session logout hung (Bluetooth) | stop signal of `bt-agent` |
 | Memory 18 % slower after a suspend | kernel 0115 (PLLM) |
 | The board reset at boot while the eMMC was probed, again and again | eMMC at 51 MHz on PLL_P (cause not proven) |
-| The board froze when a session or a terminal service stopped | the micro-USB console no longer blocks systemd |
+| The board froze when a session or a terminal service stopped | the console of the USB-C port no longer blocks systemd |
 | The clock was wrong until the network answered | `rtc-clock`: the PMIC's clock is read and written |
 
 Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
@@ -154,7 +154,6 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 - Video: endurance tests of 25 minutes at most. Several damaged files, four suspends during playback: no hang.
 - RTC battery (J202 2-pin connector): the clock was not kept in the only test (an ML cell, just fitted). Charging is off
   unless `/etc/jetson-nano/rtc.conf` says `RTC_CHARGE=ml`; never with a CR cell.
-- The login prompt of the micro-USB console was not tried from a host since its fix.
 - The install from the release packages has not been repeated from a blank board.
 - No cuFFT, cuDNN or TensorRT: NVIDIA no longer ships them for this GPU with CUDA 12.
 

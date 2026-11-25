@@ -15,7 +15,7 @@ Projet de recherche, sans support de NVIDIA, Seeed ou Omarchy.
 
 ## État
 
-Essayé sur une seule carte, version `j202-v1.2` (novembre 2026).
+Essayé sur une seule carte, version `j202-v1.2.1` (novembre 2026).
 
 | Domaine | État |
 |---|---|
@@ -141,7 +141,7 @@ flowchart LR
 | Fermeture de session bloquée (Bluetooth) | signal d'arrêt de `bt-agent` |
 | Mémoire 18 % plus lente après une veille | noyau 0115 (PLLM) |
 | La carte se remettait à zéro au démarrage, en boucle, à la sonde de l'eMMC | eMMC à 51 MHz sur PLL_P (cause non prouvée) |
-| La carte se figeait à l'arrêt d'une session ou d'un service sur un terminal | la console micro-USB ne bloque plus systemd |
+| La carte se figeait à l'arrêt d'une session ou d'un service sur un terminal | la console du port USB-C ne bloque plus systemd |
 | Heure fausse jusqu'à la réponse du réseau | `rtc-clock` : l'horloge du PMIC est lue et écrite |
 
 Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
@@ -155,7 +155,6 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 - Vidéo : épreuves de 25 minutes au plus. Plusieurs fichiers abîmés, quatre veilles pendant une lecture : aucun blocage.
 - Pile RTC (connecteur 2 broches de la J202) : l'heure n'a pas tenu au seul essai (pile ML, posée le jour même). La charge est
   coupée sauf `RTC_CHARGE=ml` dans `/etc/jetson-nano/rtc.conf` ; jamais avec une pile CR.
-- L'invite de connexion de la console micro-USB n'a pas été essayée depuis un ordinateur depuis sa correction.
 - L'installation avec les paquets de la release n'a pas été refaite depuis une carte vierge.
 - Pas de cuFFT, cuDNN ni TensorRT : NVIDIA ne les fournit plus pour ce GPU avec CUDA 12.
 
