@@ -57,6 +57,7 @@ fdtget -l "$tmp/out.dtb" "$emc/$node" | grep -q 1600000 || die "1600 MHz table m
 # The PMIC cuts the power at power-off (mainline only halts); its RTC alarm can power the board on.
 fdtput "$tmp/out.dtb" /i2c@7000d000/pmic@3c system-power-controller
 fdtget -p "$tmp/out.dtb" /i2c@7000d000/pmic@3c | grep -qx system-power-controller || die "system-power-controller not set"
+bash "$(dirname "$0")/fix-emmc-dtb.sh" "$tmp/out.dtb"
 bash "$(dirname "$0")/fix-video-dtb.sh" "$tmp/out.dtb"
 install -Dm644 "$tmp/out.dtb" "$out"
 echo "wrote $out: $(fdtget -l "$out" "$emc/$node" | tr '\n' ' ')"

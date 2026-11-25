@@ -64,19 +64,19 @@
 		status = "okay";
 		bus-width = <8>;
 		non-removable;
-		/* HS200 is enough for the boot files */
-		no-mmc-hs400;
 		/*
-		 * tegra210.dtsi sets this controller's clock (SDMMC4 from PLL_C4)
-		 * from mmc@700b0000, the microSD slot. Both probe at the same time:
-		 * when the eMMC is already running, its clock jumps and commands
-		 * time out (-110; no /boot, emergency mode). Set it here instead.
+		 * It only holds the boot files: the mode U-Boot uses, at 51 MHz on
+		 * PLL_P. In HS200 on PLL_C4 the controller's clock went through 1 GHz
+		 * while it was probed (tegra210.dtsi sets it from mmc@700b0000, the
+		 * microSD slot): commands timed out, and later the board reset there,
+		 * boot after boot.
 		 */
-		assigned-clocks = <&tegra_car TEGRA210_CLK_SDMMC4>,
-				  <&tegra_car TEGRA210_CLK_PLL_C4_OUT0>,
-				  <&tegra_car TEGRA210_CLK_PLL_C4>;
-		assigned-clock-parents = <&tegra_car TEGRA210_CLK_PLL_C4_OUT0>;
-		assigned-clock-rates = <200000000>, <1000000000>, <1000000000>;
+		/delete-property/ mmc-hs400-1_8v;
+		max-frequency = <52000000>;
+		sdhci-caps-mask = <0x7 0x0>;
+		assigned-clocks = <&tegra_car TEGRA210_CLK_SDMMC4>;
+		assigned-clock-parents = <&tegra_car TEGRA210_CLK_PLL_P>;
+		assigned-clock-rates = <51000000>;
 		vqmmc-supply = <&vdd_1v8>;
 		vmmc-supply = <&vdd_3v3_sys>;
 	};
