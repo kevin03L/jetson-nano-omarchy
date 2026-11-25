@@ -20,7 +20,7 @@ depends=(omarchy-keyring omarchy-themes-intros 'omarchy-settings=4.5.0' hyprland
 makedepends=(python)
 conflicts=(omarchy-dev)
 options=(!strip !debug)
-source=("omarchy-4.5.0-3-aarch64.pkg.tar.zst"
+source=("https://pkgs.omarchy.org/stable/aarch64/omarchy-4.5.0-3-aarch64.pkg.tar.zst"
         agent-usage-perf.py
         0002-keep-background-plugin-loaded.patch)
 noextract=("omarchy-4.5.0-3-aarch64.pkg.tar.zst")

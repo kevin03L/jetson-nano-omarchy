@@ -92,13 +92,15 @@ build_one() {
       say "$dir: installing dependencies ${missing[*]}"
       pacman -S --needed --asdeps --noconfirm "${missing[@]}"
     fi
-    # a source that is itself a pacman package (omarchy-nano) comes from pacman's cache; makepkg
-    # still checks it against the PKGBUILD's sha256
+    # a source that is itself a pacman package (omarchy-nano): use the copy in pacman's cache when it
+    # has that exact file; otherwise makepkg downloads the pinned URL. Not `pacman -Sw`: it would take
+    # the newest version, or our own build from [nano]. makepkg checks the sha256 either way.
     for f in $(field source <<<"$info"); do
-      [[ $f == *.pkg.tar.* && $f != *://* && ! -e $w/$f ]] || continue
-      [[ -f /var/cache/pacman/pkg/$f ]] || pacman -Sw --noconfirm "${f%-*-*-*}" || true
-      [[ -f /var/cache/pacman/pkg/$f ]] || die "$dir: $f is not in /var/cache/pacman/pkg (or the repositories)"
-      install -o "$BUILD_USER" -m 644 "/var/cache/pacman/pkg/$f" "$w/$f"
+      [[ $f == *.pkg.tar.* ]] || continue
+      f=${f##*/}
+      if [[ ! -e $w/$f && -f /var/cache/pacman/pkg/$f ]]; then
+        install -o "$BUILD_USER" -m 644 "/var/cache/pacman/pkg/$f" "$w/$f"
+      fi
     done
     # makepkg looks for local sources by base name, next to the PKGBUILD (nanoblas has them in
     # include/, src/ and tests/)
