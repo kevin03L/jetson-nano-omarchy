@@ -53,6 +53,10 @@ VAStatus Decoder::render(const Buffer &buffer)
     case VAIQMatrixBufferType:
         return renderIQMatrix(buffer);
     case VASliceParameterBufferType:
+        _slice_params.clear();
+        _slice_param_size = 0;
+        if (buffer.element_size < sliceParamSize() || buffer.data.size() < buffer.element_size)
+            return VA_STATUS_ERROR_INVALID_BUFFER;
         _slice_params = buffer.data;
         _slice_param_size = buffer.element_size;
         return VA_STATUS_SUCCESS;
@@ -61,7 +65,7 @@ VAStatus Decoder::render(const Buffer &buffer)
         for (size_t i = 0; _slice_param_size && i + _slice_param_size <= _slice_params.size(); i += _slice_param_size) {
             auto *base = (const VASliceParameterBufferBase *)&_slice_params[i];
 
-            if (_slice_param_size < sizeof(*base) || base->slice_data_offset > buffer.data.size() ||
+            if (base->slice_data_offset > buffer.data.size() ||
                 base->slice_data_size > buffer.data.size() - base->slice_data_offset)
                 return VA_STATUS_ERROR_INVALID_PARAMETER;
 

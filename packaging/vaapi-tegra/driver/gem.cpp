@@ -27,9 +27,9 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <cstdio>
 #include <poll.h>
 #include <stdlib.h>
 #include <ctime>
@@ -118,24 +118,43 @@ void DrmDevice::free_syncpoint(uint32_t syncpt)
     ioctl(DRM_IOCTL_TEGRA_SYNCPOINT_FREE, &args);
 }
 
-int DrmDevice::wait(const Fence &fence)
+int64_t DrmDevice::now()
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+int DrmDevice::waitUntil(const Fence &fence, int64_t deadline_ns)
 {
     struct drm_tegra_syncpoint_wait args = { 0 };
-    struct timespec ts;
 
     if (!fence.valid())
         return 0;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
     args.id = fence.id;
     args.threshold = fence.value;
-    args.timeout_ns = (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec + 5000000000;
+    args.timeout_ns = deadline_ns;
 
-    if (ioctl(DRM_IOCTL_TEGRA_SYNCPOINT_WAIT, &args) == -1) {
-        perror("tegra: the video engine does not answer");
+    while (ioctl(DRM_IOCTL_TEGRA_SYNCPOINT_WAIT, &args) == -1) {
+        if (errno == EINTR)
+            continue;
+        if (errno == EAGAIN || errno == ETIMEDOUT || errno == ETIME)
+            return 1;
+        perror("tegra: waiting for a video engine");
         return -1;
     }
     return 0;
+}
+
+int DrmDevice::wait(const Fence &fence)
+{
+    int err = waitUntil(fence, now() + 5000000000);
+
+    if (err == 1)
+        fprintf(stderr, "tegra: the video engine does not answer\n");
+    return err;
 }
 
 GemBuffer::GemBuffer(DrmDevice &dev)
