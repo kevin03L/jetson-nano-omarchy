@@ -15,7 +15,7 @@ A research project, not supported by NVIDIA, Seeed or Omarchy.
 
 ## Status
 
-Tested on one board, release `j202-v1.0` (November 2026).
+Tested on one board, release `j202-v1.1` (November 2026).
 
 | Area | State |
 |---|---|
@@ -130,7 +130,7 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 - Performance and Maximum: 2 hours of checked CPU, GPU and memory load at Maximum (14.4 W, 44 °C, 0 errors), nothing longer; 3D not included.
 - Wake from suspend by keyboard or button: not tested.
 - No HDMI hot-plug; connect the monitor before booting.
-- After a power off, the board starts again with the 12 V supply (unplug and plug) or an RTC alarm; the power button header is not tested.
+- After a power off, the board starts again with an RTC alarm (tested); plugging the 12 V supply again and the power button header are not tested.
 - The install from the release packages has not been repeated from a blank board.
 - No cuFFT, cuDNN or TensorRT: NVIDIA no longer ships them for this GPU with CUDA 12.
 

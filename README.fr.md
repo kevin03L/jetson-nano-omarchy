@@ -15,7 +15,7 @@ Projet de recherche, sans support de NVIDIA, Seeed ou Omarchy.
 
 ## État
 
-Essayé sur une seule carte, version `j202-v1.0` (novembre 2026).
+Essayé sur une seule carte, version `j202-v1.1` (novembre 2026).
 
 | Domaine | État |
 |---|---|
@@ -131,7 +131,7 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 - Performance et Maximum : 2 h de charge contrôlée (CPU, GPU, mémoire) au Maximum (14,4 W, 44 °C, 0 erreur), rien de plus long ; 3D non comprise.
 - Réveil de veille au clavier ou au bouton : pas essayé.
 - Pas de branchement HDMI à chaud ; brancher l'écran avant le démarrage.
-- Après une extinction, la carte repart en rebranchant le 12 V ou par une alarme de l'horloge ; le bouton d'alimentation n'est pas essayé.
+- Après une extinction, la carte repart par une alarme de l'horloge (essayé) ; rebrancher le 12 V et le bouton d'alimentation ne sont pas essayés.
 - L'installation avec les paquets de la release n'a pas été refaite depuis une carte vierge.
 - Pas de cuFFT, cuDNN ni TensorRT : NVIDIA ne les fournit plus pour ce GPU avec CUDA 12.
 
