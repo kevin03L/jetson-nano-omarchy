@@ -49,7 +49,11 @@ public:
 
     bool isTegra210() const { return _tegra210; }
 
+    /* until an absolute time, CLOCK_MONOTONIC: 0 done, 1 not yet, -1 an error */
+    int waitUntil(const Fence &fence, int64_t deadline_ns);
+    /* as long as an engine may take. Anything but 0: it hangs. */
     int wait(const Fence &fence);
+    static int64_t now();
 
 private:
     int _fd;

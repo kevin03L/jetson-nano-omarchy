@@ -39,6 +39,8 @@ public:
 protected:
     virtual void beginPicture() = 0;
     virtual VAStatus renderPicture(const Buffer &buffer) = 0;
+    /* the size of the codec's slice parameters: no smaller ones reach renderSlice() */
+    virtual size_t sliceParamSize() const = 0;
     virtual VAStatus renderIQMatrix(const Buffer &) { return VA_STATUS_SUCCESS; }
     /* one slice: its parameters and its data */
     virtual VAStatus renderSlice(const void *param, const uint8_t *data, uint32_t size) = 0;

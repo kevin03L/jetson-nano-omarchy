@@ -8,8 +8,8 @@
 # The device tree must power NVJPG together with NVDEC (images/mainline-kernel/fix-video-dtb.sh);
 # the driver refuses to decode otherwise.
 pkgname=vaapi-tegra
-pkgver=2.1
-pkgrel=3
+pkgver=2.2
+pkgrel=1
 pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264, H.265, VP9, VP8, MPEG-2)"
 arch=(aarch64)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
@@ -29,6 +29,9 @@ build() {
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
+  # the driver's proof of the power domain, for programs that cannot see the device tree (Firefox)
+  install -d "$pkgdir/usr/lib/vaapi-tegra"
+  ln -s /sys/firmware/devicetree/base/pmc@7000e400/powergates/nvdec/power-domains     "$pkgdir/usr/lib/vaapi-tegra/nvjpg-with-nvdec"
   install -Dm644 70-vaapi-tegra.rules -t "$pkgdir/usr/lib/udev/rules.d/"
   install -Dm644 firefox-jetson-nano.js "$pkgdir/usr/lib/firefox/browser/defaults/preferences/jetson-nano.js"
   install -Dm644 "$startdir/driver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"

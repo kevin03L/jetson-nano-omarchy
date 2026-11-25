@@ -547,40 +547,69 @@ FUNC(EndPicture, VAContextID context_id)
     return VA_STATUS_SUCCESS;
 }
 
-static VAStatus syncSurface(DriverData *dd, VASurfaceID id)
+/* the jobs a surface waits for */
+static VAStatus surfaceFences(DriverData *dd, VASurfaceID id, Fence (&fences)[2])
 {
-    Fence decoded, copied;
-    {
-        std::lock_guard<std::mutex> g(dd->lock);
+    std::lock_guard<std::mutex> g(dd->lock);
 
-        auto surface = dd->objects.surface(id);
-        if (!surface)
-            return VA_STATUS_ERROR_INVALID_SURFACE;
-        decoded = surface->decoded;
-        copied = surface->copied;
+    auto surface = dd->objects.surface(id);
+    if (!surface)
+        return VA_STATUS_ERROR_INVALID_SURFACE;
+    fences[0] = surface->decoded;
+    fences[1] = surface->copied;
+    return VA_STATUS_SUCCESS;
+}
+
+/* a job that takes longer than the engines need hangs: no wait without end */
+static const uint64_t hang_ns = 5000000000;
+
+FUNC(SyncSurface2, VASurfaceID surface, uint64_t timeout_ns)
+{
+    Fence fences[2];
+    VAStatus status = surfaceFences(DRIVER_DATA, surface, fences);
+    if (status != VA_STATUS_SUCCESS)
+        return status;
+
+    /* one deadline for both */
+    bool forever = timeout_ns == VA_TIMEOUT_INFINITE;
+    uint64_t now = DrmDevice::now();
+    uint64_t wait = forever ? hang_ns : timeout_ns;
+    int64_t deadline = wait > INT64_MAX - now ? INT64_MAX : now + wait;
+
+    for (const Fence &fence : fences) {
+        int err = DRIVER_DATA->drm.waitUntil(fence, deadline);
+
+        if (err < 0)
+            return VA_STATUS_ERROR_OPERATION_FAILED;
+        if (err)
+            return forever ? VA_STATUS_ERROR_HW_BUSY : VA_STATUS_ERROR_TIMEDOUT;
     }
-
-    if (dd->drm.wait(decoded) || dd->drm.wait(copied))
-        return VA_STATUS_ERROR_HW_BUSY;
     return VA_STATUS_SUCCESS;
 }
 
 FUNC(SyncSurface, VASurfaceID render_target)
 {
-    return syncSurface(DRIVER_DATA, render_target);
+    return tegra_SyncSurface2(ctx, render_target, VA_TIMEOUT_INFINITE);
 }
 
-FUNC(SyncSurface2, VASurfaceID surface, uint64_t timeout_ns)
+/* does not wait */
+FUNC(QuerySurfaceStatus, VASurfaceID render_target, VASurfaceStatus *surface_status)
 {
-    return syncSurface(DRIVER_DATA, surface);
-}
+    Fence fences[2];
+    VAStatus status = surfaceFences(DRIVER_DATA, render_target, fences);
+    if (status != VA_STATUS_SUCCESS)
+        return status;
 
-FUNC(QuerySurfaceStatus, VASurfaceID render_target, VASurfaceStatus *status)
-{
-    VAStatus err = syncSurface(DRIVER_DATA, render_target);
+    *surface_status = VASurfaceReady;
+    for (const Fence &fence : fences) {
+        int err = DRIVER_DATA->drm.waitUntil(fence, 0);
 
-    *status = VASurfaceReady;
-    return err;
+        if (err < 0)
+            return VA_STATUS_ERROR_OPERATION_FAILED;
+        if (err)
+            *surface_status = VASurfaceRendering;
+    }
+    return VA_STATUS_SUCCESS;
 }
 
 FUNC(QuerySurfaceError, VASurfaceID render_target, VAStatus error_status, void **error_info)

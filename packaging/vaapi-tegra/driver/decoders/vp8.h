@@ -14,6 +14,7 @@ public:
 protected:
     void beginPicture() override;
     VAStatus renderPicture(const Buffer &buffer) override;
+    size_t sliceParamSize() const override { return sizeof(VASliceParameterBufferVP8); }
     VAStatus renderSlice(const void *param, const uint8_t *data, uint32_t size) override;
 
 private:

@@ -13,6 +13,9 @@
 
 #define NVDEC_UCLASS_METHOD_OFFSET 0x10
 
+/* a link to the dependency in the device tree, from a place a sandbox lets programs read */
+#define NVJPG_LINK "/usr/lib/vaapi-tegra/nvjpg-with-nvdec"
+
 NvdecDevice::~NvdecDevice()
 {
     for (Slot &slot : _slots) {
@@ -27,18 +30,30 @@ NvdecDevice::~NvdecDevice()
         _dev.close_channel(_context);
 }
 
+/*
+ * Tegra210's NVDEC answers only when the NVJPG power domain is on too. Without this dependency in the
+ * device tree the first access stops the whole system, so it takes a proof. Where a sandbox hides the
+ * device tree (Firefox), the link lets its broker look for us. No proof, no decoding.
+ */
+static bool powered()
+{
+    static const char tree[] = "/proc/device-tree";
+    static const char pmc[] = "/proc/device-tree/pmc@7000e400";
+
+    if (!access("/proc/device-tree/pmc@7000e400/powergates/nvdec/power-domains", F_OK))
+        return true;
+    if (!access(tree, R_OK | X_OK) && !access("/proc/device-tree/compatible", R_OK))
+        return access(pmc, F_OK) == -1 && errno == ENOENT; /* another SoC has no such thing */
+    return !access(NVJPG_LINK, F_OK);
+}
+
 int NvdecDevice::open()
 {
     if (_context)
         return 0;
 
-    /*
-     * Tegra210's NVDEC answers only when the NVJPG power domain is on too. Without this dependency
-     * in the device tree the first access stops the whole system.
-     */
-    if (!access("/proc/device-tree/pmc@7000e400/powergates/nvdec", F_OK) &&
-        access("/proc/device-tree/pmc@7000e400/powergates/nvdec/power-domains", F_OK)) {
-        fprintf(stderr, "tegra: no hardware decoding, this device tree does not power NVJPG with NVDEC\n");
+    if (!powered()) {
+        fprintf(stderr, "tegra: no hardware decoding, it is not known that this device tree powers NVJPG with NVDEC\n");
         return -1;
     }
 
