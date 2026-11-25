@@ -22,7 +22,8 @@ source=(80-jetson-nano-board.rules fan-trip emc-raise jetson-nano-emc.service 10
         power-limit jetson-nano-power.service power.conf.example jetson-nano-mglru.tmpfiles
         fan-curve jetson-nano-fan-curve.service fan.conf.example
         jetson-nano-mode modes mode-set org.jetsonnano.mode.policy jetson-nano-mode.desktop
-        keep-kernel 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook jetson-nano-usb-gadget-down.service)
+        keep-kernel 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook jetson-nano-usb-gadget-down.service
+        bar-manifest.json PowerMode.qml)
 sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             '00068e7414f8b4d7d4d1c07264ae28ca6b32cabd8bca7fdfed7f8f870fa071d6'
             '3b69ebae7f91d753c92818d87276df70558e7ce416b1ef47a807854375c641f0'
@@ -56,7 +57,9 @@ sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             'cbcc422081a2b89dc3a768d471683ca94317ed75f576bc500188bf3bf97193cd'
             'e204e6c291126eedcac2f3800eb07e49db084ce35bd60a52a7a2e32d1f54cb69'
             'e73d787cbcc5ab17996319ab8164edd15d44fc91a6d1cc2003b83b6596e8e9ea'
-            '0040dd4a8dafd7693c81cd5eef837dfa1852d538600e7ea6e0333c6a1a7b9429')
+            '0040dd4a8dafd7693c81cd5eef837dfa1852d538600e7ea6e0333c6a1a7b9429'
+            'dc35dafb61d4a0bcbbab5fee2eea6e4da0933012fa719544791d6891a21a285e'
+            '686fcce1cc92450dcca0db95a46f820170f4774d24e63208f7251d034bb17be6')
 
 package() {
   install -Dm644 80-jetson-nano-board.rules "$pkgdir/usr/lib/udev/rules.d/80-jetson-nano-board.rules"
@@ -96,6 +99,9 @@ package() {
   install -Dm755 keep-kernel "$pkgdir/usr/lib/jetson-nano/keep-kernel"
   install -Dm644 -t "$pkgdir/usr/share/libalpm/hooks" 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook
   install -Dm644 jetson-nano-usb-gadget-down.service "$pkgdir/usr/lib/systemd/system/jetson-nano-usb-gadget-down.service"
+  # Omarchy bar widget: copy it to ~/.config/omarchy/plugins/ (docs/j202-plan.md)
+  install -Dm644 bar-manifest.json "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/manifest.json"
+  install -Dm644 PowerMode.qml "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/PowerMode.qml"
   install -Dm755 fan-curve "$pkgdir/usr/lib/jetson-nano/fan-curve"
   install -Dm644 jetson-nano-fan-curve.service "$pkgdir/usr/lib/systemd/system/jetson-nano-fan-curve.service"
   install -Dm644 fan.conf.example "$pkgdir/usr/share/jetson-nano/fan.conf.example"
