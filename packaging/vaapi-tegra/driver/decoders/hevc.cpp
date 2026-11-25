@@ -180,6 +180,9 @@ VAStatus HevcDecoder::build(NvdecJob &job)
 
     if (!_valid || _bitstream.empty())
         return VA_STATUS_ERROR_INVALID_PARAMETER;
+    if (!fits(*_target, _pp.pic_width_in_luma_samples, _pp.pic_height_in_luma_samples) ||
+        seq.chroma_format_idc != 1 || _pp.bit_depth_luma_minus8 > 2 || _pp.bit_depth_chroma_minus8 > 2)
+        return VA_STATUS_ERROR_INVALID_PARAMETER;
 
     int slot = currentSlot();
     if (slot < 0) {
@@ -319,7 +322,7 @@ VAStatus HevcDecoder::build(NvdecJob &job)
     auto clip = [](int v) { return std::max(-128, std::min(127, v)); };
     for (auto *set : { &before, &after, &longs }) {
         if (!set->empty()) {
-            scratch = reference(_pp.ReferenceFrames[set->front()].picture_id);
+            scratch = sameSizeReference(_pp.ReferenceFrames[set->front()].picture_id);
             scratch_poc = clip(poc - _pp.ReferenceFrames[set->front()].pic_order_cnt);
             break;
         }
@@ -334,7 +337,7 @@ VAStatus HevcDecoder::build(NvdecJob &job)
 
         if (s < 0 || s == slot)
             continue;
-        surfaces[s] = reference(ref.picture_id);
+        surfaces[s] = sameSizeReference(ref.picture_id);
         c.RefDiffPicOrderCnts[s] = clip(poc - ref.pic_order_cnt);
         if (ref.flags & VA_PICTURE_HEVC_LONG_TERM_REFERENCE)
             c.longtermflag |= 1 << (15 - s);

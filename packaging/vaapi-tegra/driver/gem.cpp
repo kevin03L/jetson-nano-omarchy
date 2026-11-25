@@ -129,7 +129,7 @@ int DrmDevice::wait(const Fence &fence)
     clock_gettime(CLOCK_MONOTONIC, &ts);
     args.id = fence.id;
     args.threshold = fence.value;
-    args.timeout_ns = (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec + 2000000000;
+    args.timeout_ns = (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec + 5000000000;
 
     if (ioctl(DRM_IOCTL_TEGRA_SYNCPOINT_WAIT, &args) == -1) {
         perror("tegra: the video engine does not answer");

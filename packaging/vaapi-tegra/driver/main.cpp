@@ -252,7 +252,7 @@ FUNC(CreateSurfaces2, unsigned int format, unsigned int width, unsigned int heig
     }
 
     for (unsigned i = 0; i < num_surfaces; i++) {
-        Surface *surface = DRIVER_DATA->objects.createSurface(&surfaces[i]);
+        auto surface = DRIVER_DATA->objects.createSurface(&surfaces[i]);
 
         /* blocks of two GOBs are 16 lines: 32 lines of luma, 16 of chroma */
         surface->width = width;
@@ -323,7 +323,7 @@ FUNC(ExportSurfaceHandle, VASurfaceID surface_id, uint32_t mem_type, uint32_t fl
 {
     std::lock_guard<std::mutex> g(DRIVER_DATA->lock);
 
-    Surface *surface = DRIVER_DATA->objects.surface(surface_id);
+    auto surface = DRIVER_DATA->objects.surface(surface_id);
     if (!surface)
         return VA_STATUS_ERROR_INVALID_SURFACE;
     if (mem_type != VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2)
@@ -409,7 +409,7 @@ FUNC(DestroyContext, VAContextID context_id)
 FUNC(CreateBuffer, VAContextID context, VABufferType type, unsigned int size,
     unsigned int num_elements, void *data, VABufferID *buf_id)
 {
-    Buffer *buffer = DRIVER_DATA->objects.createBuffer(buf_id);
+    auto buffer = DRIVER_DATA->objects.createBuffer(buf_id);
 
     buffer->type = type;
     buffer->element_size = size;
@@ -422,7 +422,7 @@ FUNC(CreateBuffer, VAContextID context, VABufferType type, unsigned int size,
 
 FUNC(BufferSetNumElements, VABufferID buf_id, unsigned int num_elements)
 {
-    Buffer *buffer = DRIVER_DATA->objects.buffer(buf_id);
+    auto buffer = DRIVER_DATA->objects.buffer(buf_id);
     if (!buffer || buffer->gem)
         return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -430,9 +430,21 @@ FUNC(BufferSetNumElements, VABufferID buf_id, unsigned int num_elements)
     return VA_STATUS_SUCCESS;
 }
 
+FUNC(BufferInfo, VABufferID buf_id, VABufferType *type, unsigned int *size, unsigned int *num_elements)
+{
+    auto buffer = DRIVER_DATA->objects.buffer(buf_id);
+    if (!buffer)
+        return VA_STATUS_ERROR_INVALID_BUFFER;
+
+    *type = buffer->type;
+    *size = buffer->element_size;
+    *num_elements = buffer->element_size ? buffer->data.size() / buffer->element_size : 0;
+    return VA_STATUS_SUCCESS;
+}
+
 FUNC(MapBuffer, VABufferID buf_id, void **pbuf)
 {
-    Buffer *buffer = DRIVER_DATA->objects.buffer(buf_id);
+    auto buffer = DRIVER_DATA->objects.buffer(buf_id);
     if (!buffer)
         return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -450,7 +462,7 @@ FUNC(MapBuffer, VABufferID buf_id, void **pbuf)
 
 FUNC(UnmapBuffer, VABufferID buf_id)
 {
-    Buffer *buffer = DRIVER_DATA->objects.buffer(buf_id);
+    auto buffer = DRIVER_DATA->objects.buffer(buf_id);
     if (!buffer)
         return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -462,7 +474,7 @@ FUNC(UnmapBuffer, VABufferID buf_id)
 
 FUNC(DestroyBuffer, VABufferID buffer_id)
 {
-    Buffer *buffer = DRIVER_DATA->objects.buffer(buffer_id);
+    auto buffer = DRIVER_DATA->objects.buffer(buffer_id);
     if (!buffer)
         return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -475,11 +487,11 @@ FUNC(DestroyBuffer, VABufferID buffer_id)
 
 FUNC(BeginPicture, VAContextID context_id, VASurfaceID render_target)
 {
-    Context *context = DRIVER_DATA->objects.context(context_id);
+    auto context = DRIVER_DATA->objects.context(context_id);
     if (!context)
         return VA_STATUS_ERROR_INVALID_CONTEXT;
 
-    Surface *surface = DRIVER_DATA->objects.surface(render_target);
+    auto surface = DRIVER_DATA->objects.surface(render_target);
     if (!surface)
         return VA_STATUS_ERROR_INVALID_SURFACE;
 
@@ -490,12 +502,12 @@ FUNC(BeginPicture, VAContextID context_id, VASurfaceID render_target)
 
 FUNC(RenderPicture, VAContextID context_id, VABufferID *buffers, int num_buffers)
 {
-    Context *context = DRIVER_DATA->objects.context(context_id);
+    auto context = DRIVER_DATA->objects.context(context_id);
     if (!context)
         return VA_STATUS_ERROR_INVALID_CONTEXT;
 
     for (int i = 0; i < num_buffers; i++) {
-        Buffer *buffer = DRIVER_DATA->objects.buffer(buffers[i]);
+        auto buffer = DRIVER_DATA->objects.buffer(buffers[i]);
         if (!buffer)
             return VA_STATUS_ERROR_INVALID_BUFFER;
 
@@ -509,13 +521,13 @@ FUNC(RenderPicture, VAContextID context_id, VABufferID *buffers, int num_buffers
 
 FUNC(EndPicture, VAContextID context_id)
 {
-    Context *context = DRIVER_DATA->objects.context(context_id);
+    auto context = DRIVER_DATA->objects.context(context_id);
     if (!context)
         return VA_STATUS_ERROR_INVALID_CONTEXT;
 
     std::lock_guard<std::mutex> g(DRIVER_DATA->lock);
 
-    Surface *surface = DRIVER_DATA->objects.surface(context->target);
+    auto surface = DRIVER_DATA->objects.surface(context->target);
     if (!surface)
         return VA_STATUS_ERROR_INVALID_SURFACE;
 
@@ -541,7 +553,7 @@ static VAStatus syncSurface(DriverData *dd, VASurfaceID id)
     {
         std::lock_guard<std::mutex> g(dd->lock);
 
-        Surface *surface = dd->objects.surface(id);
+        auto surface = dd->objects.surface(id);
         if (!surface)
             return VA_STATUS_ERROR_INVALID_SURFACE;
         decoded = surface->decoded;
@@ -624,8 +636,8 @@ FUNC(CreateImage, VAImageFormat *format, int width, int height, VAImage *image_d
     }
 
     memset(image_data, 0, sizeof(*image_data));
-    Image *image = DRIVER_DATA->objects.createImage(&image_data->image_id);
-    Buffer *buffer = DRIVER_DATA->objects.createBuffer(&image_data->buf);
+    auto image = DRIVER_DATA->objects.createImage(&image_data->image_id);
+    auto buffer = DRIVER_DATA->objects.createBuffer(&image_data->buf);
     buffer->gem = std::move(gem);
     image->buffer = image_data->buf;
     image->width = width;
@@ -655,11 +667,11 @@ FUNC(DestroyImage, VAImageID image_id)
 {
     std::lock_guard<std::mutex> g(DRIVER_DATA->lock);
 
-    Image *image = DRIVER_DATA->objects.image(image_id);
+    auto image = DRIVER_DATA->objects.image(image_id);
     if (!image)
         return VA_STATUS_ERROR_INVALID_IMAGE;
 
-    Buffer *buffer = DRIVER_DATA->objects.buffer(image->buffer);
+    auto buffer = DRIVER_DATA->objects.buffer(image->buffer);
     if (buffer) {
         if (buffer->gem && DRIVER_DATA->image_pool.size() < 8)
             DRIVER_DATA->image_pool.push_back(std::move(buffer->gem));
@@ -681,12 +693,12 @@ static VAStatus copyImage(DriverData *dd, VASurfaceID surface_id, VAImageID imag
 {
     std::lock_guard<std::mutex> g(dd->lock);
 
-    Surface *surface = dd->objects.surface(surface_id);
+    auto surface = dd->objects.surface(surface_id);
     if (!surface)
         return VA_STATUS_ERROR_INVALID_SURFACE;
 
-    Image *image = dd->objects.image(image_id);
-    Buffer *buffer = image ? dd->objects.buffer(image->buffer) : nullptr;
+    auto image = dd->objects.image(image_id);
+    auto buffer = image ? dd->objects.buffer(image->buffer) : nullptr;
     if (!buffer || !buffer->gem)
         return VA_STATUS_ERROR_INVALID_IMAGE;
     if (image->ten_bits != surface->ten_bits)
@@ -835,6 +847,7 @@ extern "C" __attribute__((visibility("default"))) VAStatus __vaDriverInit_1_0(VA
     vtbl->vaDestroyContext = tegra_DestroyContext;
     vtbl->vaCreateBuffer = tegra_CreateBuffer;
     vtbl->vaBufferSetNumElements = tegra_BufferSetNumElements;
+    vtbl->vaBufferInfo = tegra_BufferInfo;
     vtbl->vaMapBuffer = tegra_MapBuffer;
     vtbl->vaUnmapBuffer = tegra_UnmapBuffer;
     vtbl->vaDestroyBuffer = tegra_DestroyBuffer;

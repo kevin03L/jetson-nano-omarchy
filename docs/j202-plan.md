@@ -157,7 +157,7 @@ Fait :
   1080p30 64 % d'un cœur au lieu de 118 ; 1080p60 91 % au lieu de 208, avec `profile=fast` (sinon 12 images perdues par seconde, aussi en logiciel).
   Essayé : 3 flux à la fois, flux abîmé, 3 veilles en plein décodage, mémoire stable. Chromium décode toujours avec le processeur (rien de changé).
   Pas de H.265, VP9, AV1 ni 10 bits. MPEG-2 720 lignes entrelacé (inexistant en pratique) : erreurs.
-- Décodage vidéo, deuxième version (2026-11-25, vaapi-tegra 2.0, mesa 1.8, `fix-video-dtb.sh`), limites de la première levées :
+- Décodage vidéo, deuxième version (2026-11-25, vaapi-tegra 2.1, mesa 1.8, `fix-video-dtb.sh`), limites de la première levées :
   - pilote réécrit (`packaging/vaapi-tegra/driver`) : H.264, H.265 8 et 10 bits, VP9 (profil 0) et VP8 identiques au logiciel (images B, tranches,
     tuiles, prédiction pondérée, matrices, 854 de large, 1080p, 4K) ; MPEG-2 à 67-70 dB, 720 lignes entrelacé compris. Travaux en file (8), VIC enchaîné
     par le syncpoint. La puce n'a ni AV1, ni VP9 10 bits, ni H.264 10 bits ;
@@ -174,10 +174,17 @@ Fait :
     de 246, 4K30 112 au lieu de 272, 4K VP9 110 au lieu de 306, H.265 10 bits 1080p30 76 au lieu de 303 (et 14 images perdues au lieu de 428) ;
   - le VIC du Tegra210 bloque sur tous les formats 10 bits : un P010 est copié comme un NV12 deux fois plus large. L'x265 d'Arch Linux ARM est en
     8 bits seulement et le dit à peine : fabriquer les fichiers d'essai 10 bits ailleurs, et vérifier `pix_fmt` avec ffprobe ;
+  - VP9 à taille variable (références redimensionnées, visioconférence) : un lecteur crée un autre contexte au milieu du flux, l'état du décodeur suit
+    le flux par ses surfaces ; 90 images identiques. Une image annoncée plus grande que sa surface est refusée, un objet détruit par un fil reste
+    tant qu'un autre s'en sert ;
+  - 4 veilles de 12 s en pleine lecture (mpv sans copie et trois décodages contrôlés) : 38 passages identiques, aucune erreur ;
   - essayé : 30 flux abîmés (10 fichiers, tous les codecs), 4 codecs à la fois, 12 arrêts par kill -9, mémoire stable, aller et retour PutImage ;
   - Chromium d'Arch Linux ARM est compilé sans VA-API : il décode avec le processeur.
 - Démarrage en boucle (2026-11-25 au soir, deux fois) : la carte se remettait à zéro pendant que Linux sondait l'eMMC, avec toutes les entrées, ancien
   noyau compris, et démarrait dès que le nœud de l'eMMC était désactivé depuis U-Boot. Déclenché par un redémarrage juste après une écriture dans
   /boot ; cause exacte non prouvée (HS200 à 200 MHz, ou PLL_C4 qui passe par 1 GHz). `fix-emmc-dtb.sh` (et le DTS, linux-nano -7) : eMMC à 51 MHz sur
   PLL_P, le mode de U-Boot, pour toutes les entrées. Depuis : la même manœuvre et une remise à zéro par le chien de garde du PMIC démarrent.
+- Carte figée à l'arrêt d'une session ou d'un service sur un terminal, puis remise à zéro par le chien de garde (jetson-nano-board -15) : systemd
+  réinitialise `ttyGS0` (console de la prise micro-USB) avant agetty ; si l'hôte ne lit pas le port, il reste dans cette écriture avec le verrou de
+  `/dev/console`, et PID 1 attend ce verrou pour toujours. agetty ouvre maintenant le port lui-même. Reproduit avant, 1 s après.
 - Problèmes connus du projet d'origine, pas revus ici : pas de hot-plug HDMI (à essayer).

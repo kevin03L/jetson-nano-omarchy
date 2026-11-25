@@ -80,6 +80,9 @@ VAStatus Mpeg2Decoder::build(NvdecJob &job)
     if (ext.picture_structure == 3 && _rows == rows + 1)
         rows = _rows;
 
+    if (!fits(*_target, (_pp.horizontal_size + 15) & ~15, rows * 16))
+        return VA_STATUS_ERROR_INVALID_PARAMETER;
+
     c.slice_count = _offsets.size();
     _offsets.push_back(_bitstream.size());
     _bitstream.insert(_bitstream.end(), end, end + sizeof(end));
@@ -120,7 +123,7 @@ VAStatus Mpeg2Decoder::build(NvdecJob &job)
     if (forward == VA_INVALID_SURFACE)
         forward = backward;
     addSurface(job, 0, _target);
-    addSurface(job, 1, reference(forward));
-    addSurface(job, 2, reference(backward));
+    addSurface(job, 1, sameSizeReference(forward));
+    addSurface(job, 2, sameSizeReference(backward));
     return VA_STATUS_SUCCESS;
 }

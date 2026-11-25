@@ -4,6 +4,7 @@
 
 #include <map>
 
+#include "../objects.h"
 #include "decoder.h"
 
 /* The probabilities of a frame, in the order of the specification */
@@ -84,31 +85,37 @@ private:
     std::vector<uint8_t> _frame;
     Header _h;
 
-    /* kept between frames */
-    Vp9Probs _probs, _contexts[4];
-    bool _lf_delta_enabled = false;
-    int8_t _lf_ref[4] = { 1, 0, -1, -1 }, _lf_mode[2] = { 0, 0 };
-    bool _seg_abs = false;
-    bool _seg_feature[8][4] = {};
-    int16_t _seg_value[8][4] = {};
-    uint8_t _seg_tree[7] = {}, _seg_pred[3] = {};
-    bool _last_key = false, _last_show = false, _last_valid = false;
-    unsigned _last_width = 0, _last_height = 0;
+    /*
+     * Kept between frames. A player makes another context when the size changes, in the middle of a
+     * stream: the surfaces remember what they belong to, the new decoder carries on with it.
+     */
+    struct Stream : public Object {
+        Vp9Probs probs, contexts[4];
+        bool lf_delta_enabled = false;
+        int8_t lf_ref[4] = { 1, 0, -1, -1 }, lf_mode[2] = { 0, 0 };
+        bool seg_abs = false;
+        bool seg_feature[8][4] = {};
+        int16_t seg_value[8][4] = {};
+        uint8_t seg_tree[7] = {}, seg_pred[3] = {};
+        bool last_key = false, last_show = false, last_valid = false;
+        unsigned last_width = 0, last_height = 0;
 
-    /* the last frame changes the probabilities with what NVDEC counted */
-    bool _adapt = false;
-    Header _adapt_header;
-    Fence _fence;
+        /* the last frame changes the probabilities with what NVDEC counted */
+        bool adapt = false;
+        Header adapt_header;
+        Fence fence;
 
-    /* the size of the frame in each surface */
-    struct Size {
-        unsigned width, height;
+        /* the size of the frame in each surface */
+        struct Size {
+            unsigned width, height;
+        };
+        std::map<VASurfaceID, Size> sizes;
+
+        std::shared_ptr<GemBuffer> segments[2], mvs[2], filter, counts;
+        size_t segment_size = 0, mv_size = 0, filter_size = 0;
+        unsigned segment_read = 0, mv_write = 0;
     };
-    std::map<VASurfaceID, Size> _sizes;
-
-    std::shared_ptr<GemBuffer> _segments[2], _mvs[2], _filter, _counts;
-    size_t _segment_size = 0, _mv_size = 0, _filter_size = 0;
-    unsigned _segment_read = 0, _mv_write = 0;
+    std::shared_ptr<Stream> _s;
 };
 
 #endif

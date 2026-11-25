@@ -29,7 +29,7 @@ public:
     static std::unique_ptr<Decoder> create(VAProfile profile, NvdecDevice &nvdec, Objects &objects,
         unsigned width, unsigned height);
 
-    void begin(VASurfaceID id, Surface *surface);
+    void begin(VASurfaceID id, const std::shared_ptr<Surface> &surface);
     VAStatus render(const Buffer &buffer);
 
     /* fill in the job of the picture */
@@ -46,6 +46,10 @@ protected:
 
     /* the surface of a reference picture, the one being decoded when there is none */
     Surface *reference(VASurfaceID id);
+    /* the same for the codecs whose pictures all have one size */
+    Surface *sameSizeReference(VASurfaceID id);
+    /* a picture of this size is inside the memory of the surface: the engine does not know it */
+    static bool fits(const Surface &surface, unsigned width, unsigned height);
     /* the surfaces of the job, at their place in NVDEC's list */
     void addSurface(NvdecJob &job, unsigned slot, Surface *surface);
 
@@ -57,6 +61,8 @@ protected:
     Surface *_target = nullptr;
 
 private:
+    /* the surfaces of the picture stay until the next one */
+    std::vector<std::shared_ptr<Surface>> _held;
     std::vector<uint8_t> _slice_params;
     size_t _slice_param_size = 0;
 };

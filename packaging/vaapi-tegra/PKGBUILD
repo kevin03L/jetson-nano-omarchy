@@ -8,7 +8,7 @@
 # The device tree must power NVJPG together with NVDEC (images/mainline-kernel/fix-video-dtb.sh);
 # the driver refuses to decode otherwise.
 pkgname=vaapi-tegra
-pkgver=2.0
+pkgver=2.1
 pkgrel=1
 pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264, H.265, VP9, VP8, MPEG-2)"
 arch=(aarch64)

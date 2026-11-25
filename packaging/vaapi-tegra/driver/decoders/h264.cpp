@@ -143,6 +143,9 @@ VAStatus H264Decoder::build(NvdecJob &job)
     }
 
     unsigned width_mbs = _pp.picture_width_in_mbs_minus1 + 1, height_mbs = _pp.picture_height_in_mbs_minus1 + 1;
+    if (!fits(*_target, width_mbs * 16, height_mbs * 16))
+        return VA_STATUS_ERROR_INVALID_PARAMETER;
+
     size_t coloc_size = __ALIGN_KERNEL(__ALIGN_KERNEL(height_mbs, 2) * width_mbs * 64, 256);
     size_t history_size = __ALIGN_KERNEL(width_mbs * 0x200 + 0x1100, 0x200);
     size_t mbhist_size = __ALIGN_KERNEL(width_mbs * 104, 0x100);
@@ -243,7 +246,7 @@ VAStatus H264Decoder::build(NvdecJob &job)
         dpb.FieldOrderCnt[1] = ref.BottomFieldOrderCnt;
         dpb.FrameIdx = ref.frame_idx;
 
-        surfaces[ref_slot] = reference(ref.picture_id);
+        surfaces[ref_slot] = sameSizeReference(ref.picture_id);
     }
 
     job.codec = NVC5B0_SET_CONTROL_PARAMS_CODEC_TYPE_H264;

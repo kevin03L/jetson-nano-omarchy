@@ -320,9 +320,9 @@ bool Vp9Decoder::parseHeader(const uint8_t *data, size_t size)
             for (int i = 0; i < 3 && !found; i++) {
                 found = r.u(1);
                 if (found) {
-                    auto it = _sizes.find(_pp.reference_frames[_h.ref_idx[i]]);
-                    _h.width = it == _sizes.end() ? _pp.frame_width : it->second.width;
-                    _h.height = it == _sizes.end() ? _pp.frame_height : it->second.height;
+                    auto it = _s->sizes.find(_pp.reference_frames[_h.ref_idx[i]]);
+                    _h.width = it == _s->sizes.end() ? _pp.frame_width : it->second.width;
+                    _h.height = it == _s->sizes.end() ? _pp.frame_height : it->second.height;
                 }
             }
             if (!found)
@@ -342,32 +342,32 @@ bool Vp9Decoder::parseHeader(const uint8_t *data, size_t size)
 
     /* 8.4.1, setup_past_independence */
     if (_h.intra() || _h.error_res) {
-        memset(_seg_feature, 0, sizeof(_seg_feature));
-        memset(_seg_value, 0, sizeof(_seg_value));
-        _seg_abs = false;
-        _lf_ref[0] = 1;
-        _lf_ref[1] = 0;
-        _lf_ref[2] = _lf_ref[3] = -1;
-        _lf_mode[0] = _lf_mode[1] = 0;
-        _probs.setDefault();
+        memset(_s->seg_feature, 0, sizeof(_s->seg_feature));
+        memset(_s->seg_value, 0, sizeof(_s->seg_value));
+        _s->seg_abs = false;
+        _s->lf_ref[0] = 1;
+        _s->lf_ref[1] = 0;
+        _s->lf_ref[2] = _s->lf_ref[3] = -1;
+        _s->lf_mode[0] = _s->lf_mode[1] = 0;
+        _s->probs.setDefault();
 
         if (_h.key_frame || _h.error_res || _h.reset_frame_context == 3) {
-            for (auto &c : _contexts)
-                c = _probs;
+            for (auto &c : _s->contexts)
+                c = _s->probs;
         } else if (_h.reset_frame_context == 2) {
-            _contexts[_h.context] = _probs;
+            _s->contexts[_h.context] = _s->probs;
         }
         _h.context = 0;
     }
 
     _h.filter_level = r.u(6);
     _h.filter_sharpness = r.u(3);
-    _lf_delta_enabled = r.u(1);
-    if (_lf_delta_enabled && r.u(1)) {
-        for (auto &d : _lf_ref)
+    _s->lf_delta_enabled = r.u(1);
+    if (_s->lf_delta_enabled && r.u(1)) {
+        for (auto &d : _s->lf_ref)
             if (r.u(1))
                 d = r.s(6);
-        for (auto &d : _lf_mode)
+        for (auto &d : _s->lf_mode)
             if (r.u(1))
                 d = r.s(6);
     }
@@ -382,25 +382,25 @@ bool Vp9Decoder::parseHeader(const uint8_t *data, size_t size)
     if (_h.seg_enabled) {
         _h.seg_update_map = r.u(1);
         if (_h.seg_update_map) {
-            for (auto &p : _seg_tree)
+            for (auto &p : _s->seg_tree)
                 p = r.u(1) ? r.u(8) : 255;
             _h.seg_temporal = r.u(1);
-            for (auto &p : _seg_pred)
+            for (auto &p : _s->seg_pred)
                 p = _h.seg_temporal && r.u(1) ? r.u(8) : 255;
         }
         if (r.u(1)) {
             static const unsigned bits[4] = { 8, 6, 2, 0 };
 
-            _seg_abs = r.u(1);
+            _s->seg_abs = r.u(1);
             for (int i = 0; i < 8; i++)
                 for (int j = 0; j < 4; j++) {
-                    _seg_value[i][j] = 0;
-                    _seg_feature[i][j] = r.u(1);
-                    if (!_seg_feature[i][j])
+                    _s->seg_value[i][j] = 0;
+                    _s->seg_feature[i][j] = r.u(1);
+                    if (!_s->seg_feature[i][j])
                         continue;
-                    _seg_value[i][j] = r.u(bits[j]);
+                    _s->seg_value[i][j] = r.u(bits[j]);
                     if (j < 2 && r.u(1))
-                        _seg_value[i][j] = -_seg_value[i][j];
+                        _s->seg_value[i][j] = -_s->seg_value[i][j];
                 }
         }
     }
@@ -441,7 +441,7 @@ bool Vp9Decoder::parseHeader(const uint8_t *data, size_t size)
     }
 
     /* load_probs, load_probs2 */
-    _probs = _contexts[_h.context];
+    _s->probs = _s->contexts[_h.context];
     return true;
 }
 
@@ -449,7 +449,7 @@ bool Vp9Decoder::parseHeader(const uint8_t *data, size_t size)
 bool Vp9Decoder::parseCompressedHeader(const uint8_t *data, size_t size)
 {
     BoolDecoder d(data, size);
-    Vp9Probs &p = _probs;
+    Vp9Probs &p = _s->probs;
 
     if (!_h.lossless) {
         _h.tx_mode = d.l(2);
@@ -543,19 +543,19 @@ bool Vp9Decoder::parseCompressedHeader(const uint8_t *data, size_t size)
 /* 8.4.3, 8.4.4: after a frame, the probabilities follow what was counted in it */
 void Vp9Decoder::adapt()
 {
-    const Header &h = _adapt_header;
+    const Header &h = _s->adapt_header;
 
-    _adapt = false;
-    if (_nvdec.wait(_fence))
+    _s->adapt = false;
+    if (_nvdec.wait(_s->fence))
         return;
 
     nvdec_vp9EntropyCounts_t c;
-    _counts->cpuAccess(true);
-    memcpy(&c, _counts->map(), sizeof(c));
-    _counts->cpuAccess(false);
+    _s->counts->cpuAccess(true);
+    memcpy(&c, _s->counts->map(), sizeof(c));
+    _s->counts->cpuAccess(false);
 
-    Vp9Probs &p = _probs;
-    const Vp9Probs pre = _contexts[h.context];
+    Vp9Probs &p = _s->probs;
+    const Vp9Probs pre = _s->contexts[h.context];
 
     unsigned factor = !h.intra() && h.after_key ? 128 : 112;
     unsigned(*coefs[4])[2][6][6][4] = { c.countCoeffs, c.countCoeffs8x8, c.countCoeffs16x16, c.countCoeffs32x32 };
@@ -622,12 +622,12 @@ void Vp9Decoder::adapt()
         }
     }
 
-    _contexts[h.context] = p;
+    _s->contexts[h.context] = p;
 }
 
 void Vp9Decoder::fillProbs(nvdec_vp9EntropyProbs_t &o)
 {
-    const Vp9Probs &p = _probs;
+    const Vp9Probs &p = _s->probs;
     auto &a = o.a;
 
     memset(&o, 0, sizeof(o));
@@ -640,9 +640,9 @@ void Vp9Decoder::fillProbs(nvdec_vp9EntropyProbs_t &o)
         memcpy(o.kf_uv_mode_prob[i], vp9_kf_uv_mode_probs[i], 8);
         o.kf_uv_mode_probB[i][0] = vp9_kf_uv_mode_probs[i][8];
     }
-    memcpy(o.mb_segment_tree_probs, _seg_tree, 7);
+    memcpy(o.mb_segment_tree_probs, _s->seg_tree, 7);
     if (_h.seg_temporal)
-        memcpy(o.segment_pred_probs, _seg_pred, 3);
+        memcpy(o.segment_pred_probs, _s->seg_pred, 3);
     else
         memset(o.segment_pred_probs, 0xff, 3);
 
@@ -697,40 +697,57 @@ VAStatus Vp9Decoder::build(NvdecJob &job)
     if (!_valid)
         return VA_STATUS_ERROR_INVALID_PARAMETER;
 
-    if (_adapt)
+    /* the first frame of a context in the middle of a stream */
+    if (!_s) {
+        /* a key frame (type 0) starts over */
+        for (int i = 0; _pp.pic_fields.bits.frame_type && !_s && i < 8; i++) {
+            VASurfaceID id = _pp.reference_frames[i];
+            auto surface = id == VA_INVALID_SURFACE ? nullptr : _objects.surface(id);
+
+            if (surface)
+                _s = std::dynamic_pointer_cast<Stream>(surface->stream);
+        }
+        if (!_s)
+            _s = std::make_shared<Stream>();
+    }
+
+    if (_s->adapt)
         adapt();
 
     if (!parseHeader(_frame.data(), _frame.size()))
+        return VA_STATUS_ERROR_DECODING_ERROR;
+    if (!fits(*_target, _h.width, _h.height) || !_h.compressed_size ||
+        (size_t)_h.header_size + _h.compressed_size >= _frame.size())
         return VA_STATUS_ERROR_DECODING_ERROR;
     parseCompressedHeader(_frame.data() + _h.header_size, _h.compressed_size);
 
     unsigned width = __ALIGN_KERNEL(_h.width, 64), height = __ALIGN_KERNEL(_h.height, 64);
     size_t blocks = width * height / 4096;
     size_t segment_size = __ALIGN_KERNEL(blocks * 32, 0x100), mv_size = blocks * 1024, filter_size = height * 988;
-    if (!_counts)
-        _counts = _nvdec.allocate(sizeof(nvdec_vp9EntropyCounts_t), true);
-    if (segment_size > _segment_size || mv_size > _mv_size || filter_size > _filter_size) {
+    if (!_s->counts)
+        _s->counts = _nvdec.allocate(sizeof(nvdec_vp9EntropyCounts_t), true);
+    if (segment_size > _s->segment_size || mv_size > _s->mv_size || filter_size > _s->filter_size) {
         for (int i = 0; i < 2; i++) {
-            _segments[i] = _nvdec.allocate(segment_size);
-            _mvs[i] = _nvdec.allocate(mv_size);
+            _s->segments[i] = _nvdec.allocate(segment_size);
+            _s->mvs[i] = _nvdec.allocate(mv_size);
         }
-        _filter = _nvdec.allocate(filter_size);
-        if (!_segments[0] || !_segments[1] || !_mvs[0] || !_mvs[1] || !_filter)
+        _s->filter = _nvdec.allocate(filter_size);
+        if (!_s->segments[0] || !_s->segments[1] || !_s->mvs[0] || !_s->mvs[1] || !_s->filter)
             return VA_STATUS_ERROR_ALLOCATION_FAILED;
-        _segment_size = segment_size;
-        _mv_size = mv_size;
-        _filter_size = filter_size;
+        _s->segment_size = segment_size;
+        _s->mv_size = mv_size;
+        _s->filter_size = filter_size;
     } else if (_h.intra() || _h.error_res) {
         /* the map of the segments starts over */
-        auto fresh = _nvdec.allocate(_segment_size);
+        auto fresh = _nvdec.allocate(_s->segment_size);
         if (!fresh)
             return VA_STATUS_ERROR_ALLOCATION_FAILED;
-        _segments[_segment_read] = fresh;
+        _s->segments[_s->segment_read] = fresh;
     }
-    if (!_counts)
+    if (!_s->counts)
         return VA_STATUS_ERROR_ALLOCATION_FAILED;
 
-    bool same_size = _last_valid && _h.width == _last_width && _h.height == _last_height;
+    bool same_size = _s->last_valid && _h.width == _s->last_width && _h.height == _s->last_height;
 
     memset(&c, 0, sizeof(c));
 
@@ -741,10 +758,12 @@ VAStatus Vp9Decoder::build(NvdecJob &job)
     Surface *refs[3];
     for (int i = 0; i < 3; i++) {
         VASurfaceID id = _h.intra() ? VA_INVALID_SURFACE : _pp.reference_frames[_h.ref_idx[i]];
-        auto it = _sizes.find(id);
-        Size size = it == _sizes.end() ? Size{ _h.width, _h.height } : it->second;
+        auto it = _s->sizes.find(id);
+        Stream::Size size = it == _s->sizes.end() ? Stream::Size{ _h.width, _h.height } : it->second;
 
         refs[i] = reference(id);
+        if (!fits(*refs[i], size.width, size.height))
+            size = { refs[i]->width, refs[i]->height };
         auto set = [&](unsigned short &w, unsigned short &h, unsigned short *stride) {
             w = _h.intra() ? 0 : size.width;
             h = _h.intra() ? 0 : size.height;
@@ -762,10 +781,10 @@ VAStatus Vp9Decoder::build(NvdecJob &job)
     c.height = _h.height;
     c.framestride[0] = c.framestride[1] = _target->pitch;
     c.keyFrame = _h.key_frame;
-    c.prevIsKeyFrame = _last_key;
-    c.resolutionChange = _last_valid && !same_size;
+    c.prevIsKeyFrame = _s->last_key;
+    c.resolutionChange = _s->last_valid && !same_size;
     c.errorResilient = _h.error_res;
-    c.prevShowFrame = _last_show;
+    c.prevShowFrame = _s->last_show;
     c.intraOnly = _h.intra_only;
     for (int i = 1; i < 4; i++)
         c.refFrameSignBias[i] = _h.sign_bias[i];
@@ -790,17 +809,17 @@ VAStatus Vp9Decoder::build(NvdecJob &job)
     c.segmentEnabled = _h.seg_enabled;
     c.segmentMapUpdate = _h.seg_update_map;
     c.segmentMapTemporalUpdate = _h.seg_temporal;
-    c.segmentFeatureMode = _seg_abs;
+    c.segmentFeatureMode = _s->seg_abs;
     for (int i = 0; i < 8; i++)
         for (int j = 0; j < 4; j++) {
-            c.segmentFeatureEnable[i][j] = _seg_feature[i][j];
-            c.segmentFeatureData[i][j] = _seg_value[i][j];
+            c.segmentFeatureEnable[i][j] = _s->seg_feature[i][j];
+            c.segmentFeatureData[i][j] = _s->seg_value[i][j];
         }
-    c.modeRefLfEnabled = _lf_delta_enabled;
+    c.modeRefLfEnabled = _s->lf_delta_enabled;
     for (int i = 0; i < 4; i++)
-        c.mbRefLfDelta[i] = _lf_ref[i];
+        c.mbRefLfDelta[i] = _s->lf_ref[i];
     for (int i = 0; i < 2; i++)
-        c.mbModeLfDelta[i] = _lf_mode[i];
+        c.mbModeLfDelta[i] = _s->lf_mode[i];
 
     nvdec_vp9EntropyProbs_t probs;
     fillProbs(probs);
@@ -824,38 +843,39 @@ VAStatus Vp9Decoder::build(NvdecJob &job)
     for (int i = 0; i < 3; i++)
         addSurface(job, i, refs[i]);
     addSurface(job, 3, _target);
-    job.addBuffer(NVC5B0_VP9_SET_CTX_COUNTER_BUF_OFFSET, _counts, 0);
-    job.addBuffer(NVC5B0_VP9_SET_COL_MVWRITE_BUF_OFFSET, _mvs[_mv_write], 0);
-    job.addBuffer(NVC5B0_VP9_SET_COL_MVREAD_BUF_OFFSET, _mvs[!_mv_write], 0);
-    job.addBuffer(NVC5B0_VP9_SET_SEGMENT_READ_BUF_OFFSET, _segments[_segment_read], 0);
-    job.addBuffer(NVC5B0_VP9_SET_SEGMENT_WRITE_BUF_OFFSET, _segments[!_segment_read], 0);
-    job.addBuffer(NVC5B0_VP9_SET_FILTER_BUFFER_OFFSET, _filter, 0);
+    job.addBuffer(NVC5B0_VP9_SET_CTX_COUNTER_BUF_OFFSET, _s->counts, 0);
+    job.addBuffer(NVC5B0_VP9_SET_COL_MVWRITE_BUF_OFFSET, _s->mvs[_s->mv_write], 0);
+    job.addBuffer(NVC5B0_VP9_SET_COL_MVREAD_BUF_OFFSET, _s->mvs[!_s->mv_write], 0);
+    job.addBuffer(NVC5B0_VP9_SET_SEGMENT_READ_BUF_OFFSET, _s->segments[_s->segment_read], 0);
+    job.addBuffer(NVC5B0_VP9_SET_SEGMENT_WRITE_BUF_OFFSET, _s->segments[!_s->segment_read], 0);
+    job.addBuffer(NVC5B0_VP9_SET_FILTER_BUFFER_OFFSET, _s->filter, 0);
 
     if (_h.seg_update_map)
-        _segment_read = !_segment_read;
-    _mv_write = !_mv_write;
+        _s->segment_read = !_s->segment_read;
+    _s->mv_write = !_s->mv_write;
 
     /* the probabilities of the next frame */
     if (!_h.error_res && !_h.parallel) {
-        _adapt = true;
-        _adapt_header = _h;
-        _adapt_header.after_key = _last_key;
+        _s->adapt = true;
+        _s->adapt_header = _h;
+        _s->adapt_header.after_key = _s->last_key;
     }
-    if (_h.refresh_context && !_adapt)
-        _contexts[_h.context] = _probs;
-    else if (_adapt && !_h.refresh_context)
-        _adapt = false;
+    if (_h.refresh_context && !_s->adapt)
+        _s->contexts[_h.context] = _s->probs;
+    else if (_s->adapt && !_h.refresh_context)
+        _s->adapt = false;
 
-    _sizes[_target_id] = { _h.width, _h.height };
-    _last_key = _h.key_frame;
-    _last_show = _h.show_frame;
-    _last_width = _h.width;
-    _last_height = _h.height;
-    _last_valid = true;
+    _s->sizes[_target_id] = { _h.width, _h.height };
+    _s->last_key = _h.key_frame;
+    _s->last_show = _h.show_frame;
+    _s->last_width = _h.width;
+    _s->last_height = _h.height;
+    _s->last_valid = true;
     return VA_STATUS_SUCCESS;
 }
 
 void Vp9Decoder::submitted(const Fence &fence)
 {
-    _fence = fence;
+    _s->fence = fence;
+    _target->stream = _s;
 }

@@ -45,6 +45,9 @@ VAStatus Vp8Decoder::build(NvdecJob &job)
     if (!_valid || _bitstream.empty())
         return VA_STATUS_ERROR_INVALID_PARAMETER;
 
+    if (!fits(*_target, __ALIGN_KERNEL(_pp.frame_width, 16), __ALIGN_KERNEL(_pp.frame_height, 16)))
+        return VA_STATUS_ERROR_INVALID_PARAMETER;
+
     size_t history_size = __ALIGN_KERNEL(_pp.frame_width, 16) / 16 * 0x200;
     if (!_prob_data) {
         /* the firmware keeps the probabilities there, starting from the defaults */
@@ -91,9 +94,9 @@ VAStatus Vp8Decoder::build(NvdecJob &job)
     job.codec = NVC5B0_SET_CONTROL_PARAMS_CODEC_TYPE_VP8;
     job.setSetup(c);
     job.bitstream = std::move(_bitstream);
-    addSurface(job, 0, reference(_pp.golden_ref_frame));
-    addSurface(job, 1, reference(_pp.alt_ref_frame));
-    addSurface(job, 2, reference(_pp.last_ref_frame));
+    addSurface(job, 0, sameSizeReference(_pp.golden_ref_frame));
+    addSurface(job, 1, sameSizeReference(_pp.alt_ref_frame));
+    addSurface(job, 2, sameSizeReference(_pp.last_ref_frame));
     addSurface(job, 3, _target);
     job.addBuffer(NVC5B0_VP8_SET_PROB_DATA_OFFSET, _prob_data, 0);
     job.addBuffer(NVC5B0_SET_HISTORY_OFFSET, _history, 0);

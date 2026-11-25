@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 #include "decoder.h"
 
+#include <linux/kernel.h>
+
 #include "../engines/nvdec.h"
 #include "../objects.h"
 #include "h264.h"
@@ -32,10 +34,12 @@ std::unique_ptr<Decoder> Decoder::create(VAProfile profile, NvdecDevice &nvdec, 
     }
 }
 
-void Decoder::begin(VASurfaceID id, Surface *surface)
+void Decoder::begin(VASurfaceID id, const std::shared_ptr<Surface> &surface)
 {
+    _held.clear();
+    _held.push_back(surface);
     _target_id = id;
-    _target = surface;
+    _target = surface.get();
     _slice_params.clear();
 
     beginPicture();
@@ -74,9 +78,25 @@ VAStatus Decoder::render(const Buffer &buffer)
 
 Surface *Decoder::reference(VASurfaceID id)
 {
-    Surface *surface = id == VA_INVALID_SURFACE ? nullptr : _objects.surface(id);
+    auto surface = id == VA_INVALID_SURFACE ? nullptr : _objects.surface(id);
 
-    return surface && surface->gem ? surface : _target;
+    if (!surface || !surface->gem || surface->ten_bits != _target->ten_bits)
+        return _target;
+    _held.push_back(surface);
+    return surface.get();
+}
+
+Surface *Decoder::sameSizeReference(VASurfaceID id)
+{
+    Surface *surface = reference(id);
+
+    return surface->pitch == _target->pitch && surface->chroma_offset >= _target->chroma_offset ? surface : _target;
+}
+
+bool Decoder::fits(const Surface &surface, unsigned width, unsigned height)
+{
+    return width && height && width << surface.ten_bits <= surface.pitch &&
+        __ALIGN_KERNEL(height, 2) <= surface.chroma_offset / surface.pitch;
 }
 
 void Decoder::addSurface(NvdecJob &job, unsigned slot, Surface *surface)

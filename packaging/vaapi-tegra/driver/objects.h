@@ -50,6 +50,7 @@ public:
     unsigned chroma_offset; /* bytes */
     std::shared_ptr<GemBuffer> gem;
     Fence decoded;
+    std::shared_ptr<Object> stream; /* what the decoder keeps between the pictures of a stream */
 
     /* the copy other devices read, made again after each picture once it was exported */
     std::shared_ptr<GemBuffer> linear;
@@ -69,30 +70,32 @@ class Objects
 public:
     void clear();
 
-    Surface *createSurface(VASurfaceID *id) { return add(new Surface, id); }
-    Buffer *createBuffer(VABufferID *id) { return add(new Buffer, id); }
-    Context *createContext(VAContextID *id) { return add(new Context, id); }
-    Image *createImage(VAImageID *id) { return add(new Image, id); }
+    std::shared_ptr<Surface> createSurface(VASurfaceID *id) { return add<Surface>(id); }
+    std::shared_ptr<Buffer> createBuffer(VABufferID *id) { return add<Buffer>(id); }
+    std::shared_ptr<Context> createContext(VAContextID *id) { return add<Context>(id); }
+    std::shared_ptr<Image> createImage(VAImageID *id) { return add<Image>(id); }
 
-    Surface *surface(VASurfaceID id) { return dynamic_cast<Surface *>(get(id)); }
-    Buffer *buffer(VABufferID id) { return dynamic_cast<Buffer *>(get(id)); }
-    Context *context(VAContextID id) { return dynamic_cast<Context *>(get(id)); }
-    Image *image(VAImageID id) { return dynamic_cast<Image *>(get(id)); }
+    /* an object stays while somebody uses it, even when another thread removes it */
+    std::shared_ptr<Surface> surface(VASurfaceID id) { return std::dynamic_pointer_cast<Surface>(get(id)); }
+    std::shared_ptr<Buffer> buffer(VABufferID id) { return std::dynamic_pointer_cast<Buffer>(get(id)); }
+    std::shared_ptr<Context> context(VAContextID id) { return std::dynamic_pointer_cast<Context>(get(id)); }
+    std::shared_ptr<Image> image(VAImageID id) { return std::dynamic_pointer_cast<Image>(get(id)); }
 
     void remove(VAGenericID id);
 
 private:
     std::mutex _lock;
-    std::vector<Object *> _objects;
+    std::vector<std::shared_ptr<Object>> _objects;
 
-    template <typename T> T *add(T *obj, VAGenericID *id)
+    template <typename T> std::shared_ptr<T> add(VAGenericID *id)
     {
-        *id = addGeneric(obj);
-        return obj;
+        auto object = std::make_shared<T>();
+        *id = addGeneric(object);
+        return object;
     }
 
-    VAGenericID addGeneric(Object *obj);
-    Object *get(VAGenericID id);
+    VAGenericID addGeneric(std::shared_ptr<Object> object);
+    std::shared_ptr<Object> get(VAGenericID id);
 };
 
 #endif
