@@ -1,0 +1,6 @@
+# The battery of the RTC connector. Copy to /etc/jetson-nano/rtc.conf, then restart.
+#
+# RTC_CHARGE: no   coin cell that cannot be recharged (CR...), the default
+#             ml   manganese lithium cell (ML...): 3.0 V, 50 uA through 1 kOhm
+# Never charge a CR cell; a LIR cell (4.2 V) is not for this connector.
+RTC_CHARGE=no

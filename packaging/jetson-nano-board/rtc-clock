@@ -14,15 +14,19 @@ dev=/dev/${rtc##*/}
 
 case ${1:-} in
 load)
-  # The PMIC charges a backup battery to 2.5 V after each power-up; a coin cell is not rechargeable.
-  # CNFGBBC, bit 0. RTC_CHARGE=yes in /etc/jetson-nano/rtc.conf leaves it on.
+  # The PMIC charges a backup battery to 2.5 V after each power-up. CNFGBBC: bit 0 charge, bits 1-2
+  # 50 uA, bits 3-4 voltage (2.5, 3.0, 3.3, 3.5 V), bits 6-7 resistor (1 kOhm).
   RTC_CHARGE=no
   [ -r /etc/jetson-nano/rtc.conf ] && . /etc/jetson-nano/rtc.conf
+  case $RTC_CHARGE in
+  ml) bits=0x09 text="3.0 V, 50 uA" ;;
+  *) bits=0x00 text=off ;;
+  esac
   bus=$(ls -d /sys/bus/i2c/devices/*-003c 2>/dev/null | head -n 1)
-  if [ "$RTC_CHARGE" != yes ] && [ -n "$bus" ] && command -v i2cset >/dev/null; then
+  if [ -n "$bus" ] && command -v i2cset >/dev/null; then
     bus=${bus##*/}; bus=${bus%-003c}
     modprobe -q i2c-dev || true
-    v=$(i2cget -y -f "$bus" 0x3c 0x04) && i2cset -y -f "$bus" 0x3c 0x04 $((v & 0xfe)) && echo "rtc-clock: charge off"
+    v=$(i2cget -y -f "$bus" 0x3c 0x04) && i2cset -y -f "$bus" 0x3c 0x04 $((v & 0xe0 | bits)) && echo "rtc-clock: charge $text"
   fi
   if [ "$(cat "$rtc/since_epoch")" -gt "$(date +%s)" ]; then
     hwclock --hctosys --utc --rtc "$dev" && echo "rtc-clock: time taken from $dev"

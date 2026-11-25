@@ -8,7 +8,7 @@
 # guard (enabled separately) falls back to a safe boot entry after a boot that does not come up.
 pkgname=jetson-nano-board
 pkgver=1
-pkgrel=17
+pkgrel=18
 pkgdesc="Jetson Nano board policy: GPU clock floor, fan trip point, memory clock raise, memory pressure policy, micro-USB host link"
 arch=(any)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
@@ -24,7 +24,7 @@ source=(80-jetson-nano-board.rules fan-trip emc-raise jetson-nano-emc.service 10
         jetson-nano-mode modes mode-set org.jetsonnano.mode.policy jetson-nano-mode.desktop
         keep-kernel 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook jetson-nano-usb-gadget-down.service
         bar-manifest.json PowerMode.qml 10-jetson-nano-ttyGS0.conf
-        rtc-clock jetson-nano-rtc.service jetson-nano-rtc-save.service jetson-nano-rtc-save.timer)
+        rtc-clock jetson-nano-rtc.service jetson-nano-rtc-save.service jetson-nano-rtc-save.timer rtc.conf.example)
 sha256sums=('27bac386b7d87cd9624d69d0f0b676a9dceb068939afb9b2f6ca449332e8b630'
             '00068e7414f8b4d7d4d1c07264ae28ca6b32cabd8bca7fdfed7f8f870fa071d6'
             '3b69ebae7f91d753c92818d87276df70558e7ce416b1ef47a807854375c641f0'
@@ -62,10 +62,11 @@ sha256sums=('27bac386b7d87cd9624d69d0f0b676a9dceb068939afb9b2f6ca449332e8b630'
             'dc35dafb61d4a0bcbbab5fee2eea6e4da0933012fa719544791d6891a21a285e'
             '686fcce1cc92450dcca0db95a46f820170f4774d24e63208f7251d034bb17be6'
             'ef2111534cfd7f7d8f7f8b2c7de6133926a90425bf3c5d6117f36f3244e1d5ef'
-            'b4d1dada91b5ec8d54c579afbb592688621dedfdac5ed765d32e3de529eef1aa'
+            '7ddc88a32ccc2eeff84c0d412ec0dce97862fa2a0bd0bd00bec5a87047d0939e'
             '4423c1deae75be601894b3549bbeb97963f678faf8187194260aec169dd05905'
             '2103d3b2ecc11d8f801634fbeb4e91f4aacee59ee53b770a41c295137fbeaea1'
-            'c45e72f5f1613fbb1005c99da238b6dff490b4f11f8d1470d888b568dd2c4a1f')
+            'c45e72f5f1613fbb1005c99da238b6dff490b4f11f8d1470d888b568dd2c4a1f'
+            '66409c38373e2dec3158e6680cde4bda6a73e9c8fdb74cfb6333266b04887749')
 
 package() {
   install -Dm644 80-jetson-nano-board.rules "$pkgdir/usr/lib/udev/rules.d/80-jetson-nano-board.rules"
@@ -110,6 +111,7 @@ package() {
   install -Dm644 bar-manifest.json "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/manifest.json"
   install -Dm644 PowerMode.qml "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/PowerMode.qml"
   install -Dm755 rtc-clock "$pkgdir/usr/lib/jetson-nano/rtc-clock"
+  install -Dm644 rtc.conf.example "$pkgdir/usr/share/jetson-nano/rtc.conf.example"
   install -Dm644 -t "$pkgdir/usr/lib/systemd/system" jetson-nano-rtc.service jetson-nano-rtc-save.service jetson-nano-rtc-save.timer
   install -Dm755 fan-curve "$pkgdir/usr/lib/jetson-nano/fan-curve"
   install -Dm644 jetson-nano-fan-curve.service "$pkgdir/usr/lib/systemd/system/jetson-nano-fan-curve.service"
