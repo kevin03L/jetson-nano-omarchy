@@ -15,14 +15,15 @@ Projet de recherche, sans support de NVIDIA, Seeed ou Omarchy.
 
 ## État
 
-Essayé sur une seule carte, version `j202-v1.1` (novembre 2026).
+Essayé sur une seule carte, version `j202-v1.2` (novembre 2026).
 
 | Domaine | État |
 |---|---|
 | Bureau Omarchy 4.5 (Hyprland, SDDM) | fonctionne, rendu par le GPU (Mesa Zink sur le Vulkan 1.3 de NVIDIA) |
-| Noyau `linux-nano` 7.2.11-5 | 14 correctifs Tegra210 ; racine sur SSD NVMe, `/boot` sur l'eMMC |
-| `nvgpu-nano` 36.4.20261121-7 | chargé au démarrage ; 76,8 à 921,6 MHz, 1152 MHz en option |
+| Noyau `linux-nano` 7.2.11-7 | 15 correctifs Tegra210 ; racine sur SSD NVMe, `/boot` sur l'eMMC |
+| `nvgpu-nano` 36.4.20261121-9 | chargé au démarrage ; 76,8 à 921,6 MHz, 1152 MHz en option |
 | CUDA 12.9 | `nvcc`, exécution, `nanoblas` (sous-ensemble de cuBLAS) |
+| Décodage vidéo matériel | H.264, H.265 (8 et 10 bits), VP9, VP8, MPEG-2 ; affichage sans copie dans mpv et Firefox ; pas d'AV1 dans cette puce |
 | HDMI | 1920x1080 à 60 Hz, EDID lu ; écran actif 5 s après le lancement du noyau |
 | Mémoire | 1600 MHz (tables EMC de cboot), 15 à 20 Go/s vus par CUDA |
 | Ethernet 1 Gb/s, NVMe, USB | fonctionnent |
@@ -30,6 +31,21 @@ Essayé sur une seule carte, version `j202-v1.1` (novembre 2026).
 | Veille (SC7) | fonctionne, première veille et veille de 150 s comprises ; réveil par minuterie |
 | Modes de puissance | quatre modes, menu graphique et ligne de commande |
 | Démarrage graphique | logo du premier écran remplaçable, écran de chargement Plymouth |
+
+### Vidéo
+
+`vaapi-tegra` pilote le NVDEC de la puce par VA-API. Images par seconde, décodage seul :
+
+| | 1080p | 4K |
+|---|---|---|
+| H.264 | 207 | 59 |
+| H.265 | 317 | 78 |
+| H.265 10 bits | 263 | 66 |
+| VP9 | 372 | 94 |
+
+mpv (sans réglage), processeur en % d'un cœur, matériel / logiciel : 1080p60 76 / 203, 4K30 H.265 69 / 325. Firefox
+décode en matériel, bac à sable actif. Pas Chromium : Arch Linux ARM le compile sans VA-API.
+Le MPEG-2 diffère du logiciel par des arrondis ; les autres formats lui sont identiques.
 
 ### Modes de puissance
 
@@ -123,6 +139,10 @@ flowchart LR
 | Capteur de puissance muet après une veille | noyau 0111 |
 | eMMC parfois absente au démarrage, HDMI sans 5 V | device tree J202 |
 | Fermeture de session bloquée (Bluetooth) | signal d'arrêt de `bt-agent` |
+| Mémoire 18 % plus lente après une veille | noyau 0115 (PLLM) |
+| La carte se remettait à zéro au démarrage, en boucle, à la sonde de l'eMMC | eMMC à 51 MHz sur PLL_P (cause non prouvée) |
+| La carte se figeait à l'arrêt d'une session ou d'un service sur un terminal | la console micro-USB ne bloque plus systemd |
+| Heure fausse jusqu'à la réponse du réseau | `rtc-clock` : l'horloge du PMIC est lue et écrite |
 
 Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 
@@ -131,7 +151,11 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 - Performance et Maximum : 2 h de charge contrôlée (CPU, GPU, mémoire) au Maximum (14,4 W, 44 °C, 0 erreur), rien de plus long ; 3D non comprise.
 - Réveil de veille au clavier ou au bouton : pas essayé.
 - Pas de branchement HDMI à chaud ; brancher l'écran avant le démarrage.
-- Après une extinction, la carte repart par une alarme de l'horloge (essayé) ; rebrancher le 12 V et le bouton d'alimentation ne sont pas essayés.
+- Après une extinction, la carte repart par une alarme de l'horloge (essayé) ; elle est aussi repartie en rebranchant le 12 V (une fois). Le bouton d'alimentation n'est pas essayé.
+- Vidéo : épreuves de 25 minutes au plus. Plusieurs fichiers abîmés, quatre veilles pendant une lecture : aucun blocage.
+- Pile RTC (connecteur 2 broches de la J202) : l'heure n'a pas tenu au seul essai (pile ML, posée le jour même). La charge est
+  coupée sauf `RTC_CHARGE=ml` dans `/etc/jetson-nano/rtc.conf` ; jamais avec une pile CR.
+- L'invite de connexion de la console micro-USB n'a pas été essayée depuis un ordinateur depuis sa correction.
 - L'installation avec les paquets de la release n'a pas été refaite depuis une carte vierge.
 - Pas de cuFFT, cuDNN ni TensorRT : NVIDIA ne les fournit plus pour ce GPU avec CUDA 12.
 
@@ -140,7 +164,7 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 Projet d'origine et portage nvgpu/CUDA : [Kristianaaron](https://github.com/Kristianaaron/jetson-nano-omarchy).
 Version J202 : kevin03L, avec Claude (Anthropic). Pilotes : NVIDIA et [OE4T](https://github.com/OE4T). Noyau :
 [Arch Linux ARM](https://github.com/archlinuxarm/PKGBUILDs). Bureau : [Omarchy](https://github.com/basecamp/omarchy)
-et [Hyprland](https://github.com/hyprwm/Hyprland). Liste complète dans le [README anglais](README.md#credits).
+et [Hyprland](https://github.com/hyprwm/Hyprland). Décodage vidéo : [vaapi-tegra-driver](https://github.com/cyndis/vaapi-tegra-driver) et le [FFmpeg d'averne](https://github.com/averne/FFmpeg). Liste complète dans le [README anglais](README.md#credits).
 
 Scripts et documentation : MIT. Les correctifs gardent la licence du code modifié (noyau et pilotes : GPL-2.0).
 Aucun binaire propriétaire de NVIDIA n'est distribué ici. Projet sans lien avec NVIDIA, Seeed, Omarchy ou Arch Linux ARM.
