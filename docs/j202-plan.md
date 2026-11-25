@@ -143,4 +143,11 @@ Fait :
   puis `plymouth-set-default-theme jetson-nano` et `mkinitcpio -p linux-nano`. Essayé : `nano-oc`, `nano-cuda`, `nano` (nouveau).
 - Extinction réelle (2026-11-25) : `system-power-controller` sur le PMIC (ajouté par `make-j202-nano-dtb.sh`). `SFT_RST_WK` est à 0 et
   `WK_ALARM1` à 1 (registre 0x42 = 0x5f). `systemctl poweroff` coupe la carte ; l'alarme de rtc0 la rallume à l'heure dite.
-- Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI.
+- Arrêt en 1,8 s au lieu de 17 (2026-11-25) : systemd attendait 15 s la console du port micro-USB (`gs_close`) ; jetson-nano-usb-gadget-down la
+  débranche avant. Redémarrage : 54 → 38 s. 12 redémarrages à chaud : 0 reset parasite (défaut du projet d'origine).
+- Noyau précédent gardé (`keep-kernel`, crochets pacman) : modules, module GPU, Image, initramfs, DTB, entrée `nano-prev`. Essayé -5 → -4 → -5.
+- `scripts/j202-root-to-nvme.sh` : racine de l'eMMC vers le NVMe ; essayé sur un disque virtuel seulement.
+- Débit mémoire après une veille (linux-nano 7.2.11-6, 0115) : le micrologiciel remet PLLM à 1305,6 MHz, allumée, et le noyau la laisse ; mémoire
+  18 % plus lente pour toujours (GPU 18,6 → 15,4 Go/s, glmark2 530 → 430). Corrigé : 18,64 Go/s après 9 veilles sur 9.
+- Essai long (7.2.11-5, nvgpu -7, 1785 + 1152, 18 cycles, environ 50 min) : CPU + GPU + mémoire + NVMe vérifiés, 3D, veille : 0 erreur ; 13,9 W, 43 °C.
+- Problèmes connus du projet d'origine, pas revus ici : pas de hot-plug HDMI (à essayer).
