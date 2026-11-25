@@ -8,7 +8,8 @@
 # after a suspend (the GPU's frequency stayed stuck), 0111 the power sensor's I2C bus after a suspend.
 # 0112 adds an optional parameter for higher CPU clocks (off by default), 0113 stops the PMIC watchdog
 # during suspend (it reset the board after a minute),
-# 0114 keeps the firmware's UART clocked (the first suspend after a boot hung).
+# 0114 keeps the firmware's UART clocked (the first suspend after a boot hung), 0115 gives the memory its
+# full speed back after a suspend.
 # Fork kevin03L/jetson-nano-omarchy (branch j202): also builds the reComputer J1020 v2 device tree
 # (tegra210-p3448-0002-j202.dtb). scripts/cross-build-linux-nano.sh builds this PKGBUILD on x86.
 #
@@ -24,7 +25,7 @@ pkgbase=linux-nano
 _srcname=linux-7.2
 _desc="NVIDIA Jetson Nano (Tegra210), based on ALARM linux-aarch64"
 pkgver=7.2.11
-pkgrel=5
+pkgrel=6
 arch=('aarch64')
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=('GPL-2.0-only')
@@ -51,6 +52,7 @@ source=("https://www.kernel.org/pub/linux/kernel/v7.x/${_srcname}.tar.xz"
         '0112-clk-tegra-dfll-fcpu-optional-higher-CPU-clock.patch'
         '0113-watchdog-max77620-stop-the-watchdog-during-suspend.patch'
         '0114-clk-tegra210-keep-UART-A-clocked-for-the-firmware.patch'
+        '0115-clk-tegra210-program-PLLM-again-after-a-suspend.patch'
         'config'
         'config.nano'
         'linux.preset'
@@ -76,6 +78,7 @@ md5sums=('381ae4b20294dcf4b8f63f1fd1bb7017'
          '48367e8b0812edadabdcd45c5b1db5b0'
          'ef104ed43d23031a49891d82075212f1'
          '76d2acacbdd89f8995fe895deb698c24'
+         '0d251eb5a25a1d92d71958918504ff47'
          'cf663e64ec5f265ab09615e5f70c4e64'
          'a02844d3fc28f3d1f38ff78c29bb08a6'
          '4a2ba66081ce525b807d7eaffbc5fa75'
@@ -115,6 +118,7 @@ prepare() {
   git apply ../0112-clk-tegra-dfll-fcpu-optional-higher-CPU-clock.patch
   git apply ../0113-watchdog-max77620-stop-the-watchdog-during-suspend.patch
   git apply ../0114-clk-tegra210-keep-UART-A-clocked-for-the-firmware.patch
+  git apply ../0115-clk-tegra210-program-PLLM-again-after-a-suspend.patch
 
   # reComputer J1020 v2 (eMMC module on the Seeed J202): mainline only has the SD-card module
   # (p3450). Same file as images/mainline-kernel/j202/, built with the other Tegra210 dtbs.
