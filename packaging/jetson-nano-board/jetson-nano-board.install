@@ -1,13 +1,13 @@
 post_install() {
-  systemctl enable jetson-nano-emc.service jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service
+  systemctl enable jetson-nano-emc.service jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service jetson-nano-rtc-save.timer
   echo ">>> jetson-nano-board supersedes the local jetson-emc-min-clock, jetson-gpu-min-clock and"
   echo ">>> jetson-nano-fan services; disable them: systemctl disable jetson-emc-min-clock"
   echo ">>> jetson-gpu-min-clock jetson-nano-fan"
 }
 pre_remove() {
-  systemctl disable jetson-nano-emc.service jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service jetson-nano-boot-guard.service jetson-nano-boot-ok.service
+  systemctl disable jetson-nano-emc.service jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service jetson-nano-rtc-save.timer jetson-nano-boot-guard.service jetson-nano-boot-ok.service
 }
 
 post_upgrade() {
-  systemctl enable jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service
+  systemctl enable jetson-nano-usb-gadget.service jetson-nano-usb-gadget-down.service serial-getty@ttyGS0.service jetson-nano-power.service jetson-nano-rtc-save.timer
 }

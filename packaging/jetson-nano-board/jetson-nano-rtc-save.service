@@ -1,0 +1,6 @@
+[Unit]
+Description=Write the synchronized time to the battery-backed clock
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/jetson-nano/rtc-clock save

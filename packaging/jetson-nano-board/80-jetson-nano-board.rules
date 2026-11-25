@@ -10,3 +10,5 @@ ACTION=="add", SUBSYSTEM=="devfreq", KERNEL=="57000000.gpu", ATTR{min_freq}="537
 ACTION=="add", SUBSYSTEM=="devfreq", KERNEL=="57000000.gpu", RUN+="/usr/lib/jetson-nano/power-limit --gpu-cap /sys%p"
 # Fan: start at 38 C instead of mainline's 50 C active trip on the CPU zone.
 ACTION=="add", SUBSYSTEM=="thermal", KERNEL=="thermal_zone*", ATTR{type}=="cpu-thermal", RUN+="/usr/lib/jetson-nano/fan-trip /sys%p"
+# The battery-backed clock, as soon as its driver finds it
+ACTION=="add", SUBSYSTEM=="rtc", ATTR{name}=="*max77620-rtc", TAG+="systemd", ENV{SYSTEMD_WANTS}+="jetson-nano-rtc.service"

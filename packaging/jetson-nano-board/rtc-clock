@@ -1,0 +1,34 @@
+#!/bin/sh
+# jetson-nano-board: the clock of the PMIC, kept by the battery of the RTC connector.
+#   rtc-clock load   when the driver finds it: the system takes its time, when it is later than the
+#                    one systemd remembered (a clock that lost its power is in 2000)
+#   rtc-clock save   the system's time, once it is synchronized, goes into it
+# The kernel does neither (the driver is a module, and RTC_SYSTOHC is off).
+set -eu
+rtc=
+for d in /sys/class/rtc/rtc*; do
+  case $(cat "$d/name") in *max77620-rtc*) rtc=$d ;; esac
+done
+[ -n "$rtc" ] || { echo "rtc-clock: no max77620 clock" >&2; exit 0; }
+dev=/dev/${rtc##*/}
+
+case ${1:-} in
+load)
+  # The PMIC charges a backup battery to 2.5 V after each power-up; a coin cell is not rechargeable.
+  # CNFGBBC, bit 0. RTC_CHARGE=yes in /etc/jetson-nano/rtc.conf leaves it on.
+  RTC_CHARGE=no
+  [ -r /etc/jetson-nano/rtc.conf ] && . /etc/jetson-nano/rtc.conf
+  bus=$(ls -d /sys/bus/i2c/devices/*-003c 2>/dev/null | head -n 1)
+  if [ "$RTC_CHARGE" != yes ] && [ -n "$bus" ] && command -v i2cset >/dev/null; then
+    bus=${bus##*/}; bus=${bus%-003c}
+    modprobe -q i2c-dev || true
+    v=$(i2cget -y -f "$bus" 0x3c 0x04) && i2cset -y -f "$bus" 0x3c 0x04 $((v & 0xfe)) && echo "rtc-clock: charge off"
+  fi
+  if [ "$(cat "$rtc/since_epoch")" -gt "$(date +%s)" ]; then
+    hwclock --hctosys --utc --rtc "$dev" && echo "rtc-clock: time taken from $dev"
+  fi ;;
+save)
+  [ -e /run/systemd/timesync/synchronized ] || timedatectl show -p NTPSynchronized --value | grep -qx yes || exit 0
+  hwclock --systohc --utc --rtc "$dev" && echo "rtc-clock: $dev set" ;;
+*) echo "usage: rtc-clock load|save" >&2; exit 2 ;;
+esac

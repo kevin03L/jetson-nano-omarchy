@@ -8,12 +8,12 @@
 # guard (enabled separately) falls back to a safe boot entry after a boot that does not come up.
 pkgname=jetson-nano-board
 pkgver=1
-pkgrel=15
+pkgrel=17
 pkgdesc="Jetson Nano board policy: GPU clock floor, fan trip point, memory clock raise, memory pressure policy, micro-USB host link"
 arch=(any)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=(MIT)
-depends=(systemd kmod iproute2)
+depends=(systemd kmod iproute2 util-linux i2c-tools)
 install=jetson-nano-board.install
 source=(80-jetson-nano-board.rules fan-trip emc-raise jetson-nano-emc.service 10-jetson-nano-oom.conf
         10-jetson-nano-oomd.conf 10-jetson-nano-memory.slice.conf 10-jetson-nano-memory.service.conf 10-jetson-nano-session.slice.conf
@@ -23,8 +23,9 @@ source=(80-jetson-nano-board.rules fan-trip emc-raise jetson-nano-emc.service 10
         fan-curve jetson-nano-fan-curve.service fan.conf.example
         jetson-nano-mode modes mode-set org.jetsonnano.mode.policy jetson-nano-mode.desktop
         keep-kernel 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook jetson-nano-usb-gadget-down.service
-        bar-manifest.json PowerMode.qml 10-jetson-nano-ttyGS0.conf)
-sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
+        bar-manifest.json PowerMode.qml 10-jetson-nano-ttyGS0.conf
+        rtc-clock jetson-nano-rtc.service jetson-nano-rtc-save.service jetson-nano-rtc-save.timer)
+sha256sums=('27bac386b7d87cd9624d69d0f0b676a9dceb068939afb9b2f6ca449332e8b630'
             '00068e7414f8b4d7d4d1c07264ae28ca6b32cabd8bca7fdfed7f8f870fa071d6'
             '3b69ebae7f91d753c92818d87276df70558e7ce416b1ef47a807854375c641f0'
             '42b0e04d9ac5675f5087949df1d27d3a14ad3b1f4d8e6c0acdab8fb86d97e700'
@@ -60,7 +61,11 @@ sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             '0040dd4a8dafd7693c81cd5eef837dfa1852d538600e7ea6e0333c6a1a7b9429'
             'dc35dafb61d4a0bcbbab5fee2eea6e4da0933012fa719544791d6891a21a285e'
             '686fcce1cc92450dcca0db95a46f820170f4774d24e63208f7251d034bb17be6'
-            'ef2111534cfd7f7d8f7f8b2c7de6133926a90425bf3c5d6117f36f3244e1d5ef')
+            'ef2111534cfd7f7d8f7f8b2c7de6133926a90425bf3c5d6117f36f3244e1d5ef'
+            'b4d1dada91b5ec8d54c579afbb592688621dedfdac5ed765d32e3de529eef1aa'
+            '4423c1deae75be601894b3549bbeb97963f678faf8187194260aec169dd05905'
+            '2103d3b2ecc11d8f801634fbeb4e91f4aacee59ee53b770a41c295137fbeaea1'
+            'c45e72f5f1613fbb1005c99da238b6dff490b4f11f8d1470d888b568dd2c4a1f')
 
 package() {
   install -Dm644 80-jetson-nano-board.rules "$pkgdir/usr/lib/udev/rules.d/80-jetson-nano-board.rules"
@@ -104,6 +109,8 @@ package() {
   # Omarchy bar widget: copy it to ~/.config/omarchy/plugins/ (docs/j202-plan.md)
   install -Dm644 bar-manifest.json "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/manifest.json"
   install -Dm644 PowerMode.qml "$pkgdir/usr/share/jetson-nano/bar/jetson.power-mode/PowerMode.qml"
+  install -Dm755 rtc-clock "$pkgdir/usr/lib/jetson-nano/rtc-clock"
+  install -Dm644 -t "$pkgdir/usr/lib/systemd/system" jetson-nano-rtc.service jetson-nano-rtc-save.service jetson-nano-rtc-save.timer
   install -Dm755 fan-curve "$pkgdir/usr/lib/jetson-nano/fan-curve"
   install -Dm644 jetson-nano-fan-curve.service "$pkgdir/usr/lib/systemd/system/jetson-nano-fan-curve.service"
   install -Dm644 fan.conf.example "$pkgdir/usr/share/jetson-nano/fan.conf.example"

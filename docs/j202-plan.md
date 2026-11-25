@@ -190,4 +190,8 @@ Fait :
 - Carte figée à l'arrêt d'une session ou d'un service sur un terminal, puis remise à zéro par le chien de garde (jetson-nano-board -15) : systemd
   réinitialise `ttyGS0` (console de la prise micro-USB) avant agetty ; si l'hôte ne lit pas le port, il reste dans cette écriture avec le verrou de
   `/dev/console`, et PID 1 attend ce verrou pour toujours. agetty ouvre maintenant le port lui-même. Reproduit avant, 1 s après.
+- Pile du connecteur RTC 2 broches (J202) : elle alimente la RTC du PMIC (`rtc0`, max77620 ; pas d'autre puce RTC sur les bus I2C). Le noyau ne la lit ni
+  ne l'écrit (pilote en module, RTC_HCTOSYS et RTC_SYSTOHC absents) : elle restait en 2000. jetson-nano-board -17 (`rtc-clock`) : heure prise au
+  démarrage quand elle est plus récente, écrite une fois synchronisée, chaque heure et à l'arrêt. Le PMIC charge la pile à 2,5 V à chaque mise sous
+  tension (CNFGBBC = 0x41) : coupé, une pile bouton n'est pas rechargeable (`RTC_CHARGE=yes` dans `/etc/jetson-nano/rtc.conf` la laisse).
 - Problèmes connus du projet d'origine, pas revus ici : pas de hot-plug HDMI (à essayer).
