@@ -49,7 +49,7 @@ Fait :
 - Redémarrage à chaud : se fige parfois avant même le bootloader (une fois sur deux essais), il faut couper le 12 V. Même problème que le projet d'origine, à revoir avec `linux-nano` (patch 0103).
 - Reste à faire : PWM (régulateur GPU, ventilateur), affichage (`Cannot find any crtc`), RAM à 204 MHz, Ethernet parfois négocié à 100 Mb/s.
 
-- Dans WSL : `cd /mnt/c/Users/Lerou/Documents/jetson/jetson-nano-omarchy && sudo LOG=/mnt/c/Users/Lerou/Documents/jetson/wsl-live.log bash scripts/flash-j202-emmc.sh`
+- Dans WSL, depuis le dépôt : `sudo bash scripts/flash-j202-emmc.sh`
 - Résultat : le bootloader NVIDIA R32.7.6 d'origine dans l'eMMC. `mmcblk0p1` contient Arch avec le kernel mainline d'ALARM (`/boot/mainline/Image`) et le DTB J202, sans initramfs : sdhci-tegra, ext4, pcie-tegra et nvme sont intégrés au kernel ALARM.
 - Au premier boot, vérifier : la console série, le SSH (`alarm`/`alarm` ; changer aussi `root`/`root`), l'Ethernet, `lsblk` (eMMC = mmcblk0) et `lspci` (SSD).
 - Limites du kernel ALARM brut :

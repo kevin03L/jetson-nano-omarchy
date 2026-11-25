@@ -3,3 +3,5 @@
 *.dtsi text eol=lf
 *.dtb binary
 packaging/** text eol=lf
+omarchy/nano/files/** text eol=lf
+omarchy/nano/*.py text eol=lf

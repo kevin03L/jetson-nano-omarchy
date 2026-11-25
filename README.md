@@ -1,100 +1,157 @@
-# jetson-nano-omarchy
+# jetson-nano-omarchy: reComputer J1020 v2
 
-[Omarchy](https://omarchy.org) running natively on the original NVIDIA Jetson Nano 4 GB (Tegra210,
-GM20B Maxwell GPU, compute capability 5.3), on a mainline Linux kernel and Arch Linux ARM, with
-NVIDIA's own GPU driver ported to that kernel so CUDA 12 can run next to the desktop.
+**English | [Français](README.fr.md)**
 
-This is a research project. Every result in `docs/` and `results/` is labelled **measured** (seen on
-the board, with the log named) or **inferred**. Nothing here is supported by NVIDIA or Omarchy.
+[Omarchy](https://omarchy.org) on the Seeed reComputer J1020 v2 (NVIDIA Jetson Nano 4 GB, eMMC module
+P3448-0002 on the J202 carrier): a Linux 7.2 kernel close to mainline, NVIDIA's `nvgpu` driver ported to
+it, CUDA 12.9 and the accelerated Hyprland desktop.
 
-## Status (2026-11-22)
+This is a fork of [Kristianaaron/jetson-nano-omarchy](https://github.com/Kristianaaron/jetson-nano-omarchy),
+written for NVIDIA's B01 dev kit with an SD card. The driver and CUDA ports come from that project; this fork
+adds J202 support, suspend, reliability fixes, power modes and a graphical boot. **With an NVIDIA dev kit, use
+the original project.**
+
+A research project, not supported by NVIDIA, Seeed or Omarchy.
+
+## Status
+
+Tested on one board, release `j202-v1.0` (November 2026).
 
 | Area | State |
 |---|---|
-| Omarchy 4.5 desktop (Hyprland, SDDM) | works on **one driver stack**: Mesa Zink on NVIDIA's R36 Vulkan driver over nvgpu; 34 of 36 Omarchy apps open and close cleanly ([docs/cuda-feasibility.md §22](docs/cuda-feasibility.md)) |
-| Kernel `linux-nano` 7.2.11-5 | ALARM `linux-aarch64` + Tegra210 config, MGLRU, zram (zstd); warm reboots no longer crash in the XUSB driver (patch 0103) |
-| NVIDIA nvgpu + nvmap (L4T R36) | packaged (`nvgpu-nano`), loads at boot without workarounds (GPC clock deadlock fixed); DVFS 76.8 to 921.6 MHz |
-| CUDA | **CUDA 12.9** compiler and runtime (`cuda-nano`), the last release that targets sm_53; `nvcc` works end to end with `gcc13` |
-| cuBLAS | `nanoblas`: the cuBLAS API subset applications use (GEMM in FP32/FP16/BF16, batched GEMM and TRSM), built for sm_53, since NVIDIA's math libraries ship no sm_53 code |
-| Vulkan 1.3 | works (NVIDIA R36 driver); `VK_LAYER_NANO_display` answers the display queries NVIDIA's driver fails on mainline and stops exit crashes |
-| Power | `jetson-nano-board` keeps the board inside its supply: clock caps per supply profile, applied the moment the GPU appears, plus a 20 Hz loop on the INA3221 input sensor |
-| Self-recovery | hung tasks and soft lockups panic and reboot in 10 s; the PMIC watchdog resets a frozen board; the panic log survives in ramoops |
-| Display | native resolution once the monitor's EDID is supplied as firmware; HDMI hot-plug does not work on mainline yet |
+| Omarchy 4.5 desktop (Hyprland, SDDM) | works, rendered by the GPU (Mesa Zink on NVIDIA's Vulkan 1.3) |
+| Kernel `linux-nano` 7.2.11-5 | 14 Tegra210 patches; root on an NVMe SSD, `/boot` on the eMMC |
+| `nvgpu-nano` 36.4.20261121-6 | loads at boot; 76.8 to 921.6 MHz, 1152 MHz as an option |
+| CUDA 12.9 | `nvcc`, runtime, `nanoblas` (a cuBLAS subset) |
+| HDMI | 1920x1080 at 60 Hz, EDID read; picture 5 s after the kernel starts |
+| Memory | 1600 MHz (cboot's EMC tables), 15 to 20 GB/s seen from CUDA |
+| 1 Gb/s Ethernet, NVMe, USB | work |
+| Bluetooth, HDMI sound | detected, little used so far |
+| Suspend (SC7) | works, including the first one after a boot and one of 150 s; timer wake |
+| Power modes | four modes, graphical menu and command line |
+| Graphical boot | replaceable first boot logo, Plymouth loading screen |
 
-Read [docs/omarchy-on-jetson-nano.md](docs/omarchy-on-jetson-nano.md) for the desktop port and
-[docs/cuda-feasibility.md](docs/cuda-feasibility.md) for the CUDA work, in that order.
+### Power modes
+
+`jetson-nano-mode`, or "Power mode" in the launcher.
+
+| Mode | CPU | GPU | CUDA compute (FP32 FMA) |
+|---|---|---|---|
+| Eco | 918 MHz | 537 MHz | 108 GFLOPS |
+| Normal (NVIDIA's clocks) | 1479 MHz | 921 MHz | 184 GFLOPS |
+| Performance | 1683 MHz | 1075 MHz | 213 GFLOPS |
+| Maximum | 1785 MHz | 1152 MHz | 228 GFLOPS |
+
+Measured in Maximum: 13.9 W and 42 °C peak (fan running), 2.8 W idle. CPU and GPU results checked, 0 errors.
+
+> [!WARNING]
+> Performance and Maximum go beyond the clocks NVIDIA guarantees. They only passed tests of a few minutes per
+> step, on one chip. They stay off unless the boot entry asks for them.
 
 ## What you need
 
-- A Jetson Nano 4 GB, B01 carrier board, with its QSPI bootloader. The scripts never write QSPI
-  ([docs/boot-chain.md](docs/boot-chain.md)).
-- A 5 V barrel-jack supply. **4 A is recommended** (fit the J48 jumper and set `SUPPLY_W=20` in
-  `/etc/jetson-nano/power.conf` for full GPU clocks). A 2 A supply works with the default 10 W profile,
-  which caps the GPU at 614.4 MHz; micro-USB power browns the board out under desktop load.
-- A microSD card of 128 GB (the package builds use about 60 GB), wired Ethernet, and an HDMI monitor.
-- Time: the kernel and `gcc13` take many hours to build on the Nano itself; distcc to a faster
-  aarch64 host shortens that.
+- A reComputer J1020 v2 with its 12 V / 5 A supply and a fan.
+- An M.2 Key M NVMe SSD (the full build takes about 60 GB).
+- Wired Ethernet, an HDMI monitor, a keyboard.
+- A **3.3 V** USB serial adapter on the J202's UART (115200 8N1). Needed in practice: the boot menu and the
+  rescue messages are on the serial port.
+- An x86_64 PC with Linux or WSL2 (Ubuntu 24.04) to flash the eMMC and build the kernel.
 
 ## Install
 
-1. **Card.** On macOS, `scripts/build-sd-image-mac.sh --card /dev/diskN --write` writes Arch Linux ARM
-   with a working boot entry (set `ROOT_PASS` and change the password after the first boot; the
-   script's header lists its options). From an
-   existing aarch64 Linux on the Nano, `scripts/install-nano.sh` does the same to a second card.
-2. **Provision.** Boot the card, then as root over SSH run `bash omarchy/nano/provision-nano.sh`. It
-   sets up accounts, the boot configuration, Omarchy and the user's desktop, in resumable stages
-   ([omarchy/nano/README.md](omarchy/nano/README.md)).
-3. **The Nano stack.** As root, `bash scripts/build-nano-stack.sh` builds and installs every package
-   in order into a local `[nano]` pacman repository listed first, so updates keep the Nano builds. It
-   then makes linux-nano's device tree and adds the boot entries. Run it with `--dry-run` first; it
-   resumes where it stopped.
-4. **Reboot.** The default entry, `nano-cuda`, starts the desktop and CUDA on nvgpu. `nano` is the
-   nouveau fallback and `primary` the distribution kernel.
-5. **Check.** `/usr/lib/nanoblas/gemm_test` runs every GEMM and TRSM case on the GPU against a CPU
-   reference and should report all of them passed.
+> [!CAUTION]
+> Step 1 **erases the whole eMMC**.
+
+1. **Flash the eMMC.** Board off, jumper FC REC to GND, then power on. On the PC:
+   `sudo bash scripts/flash-j202-emmc.sh` (on WSL2, attach the USB device with `usbipd` first, see the script's
+   header). The bootloader is NVIDIA's (L4T R32.7.6); the system is Arch Linux ARM.
+2. **Root on the NVMe.** Copy `/` to the SSD and keep `/boot` on the eMMC
+   ([docs/j202-plan.md](docs/j202-plan.md), phase 2, in French).
+3. **Provision.** As root over SSH: `bash omarchy/nano/provision-nano.sh`.
+4. **Nano stack.** To avoid building the kernel, nvgpu and the board policy, download the packages of the
+   [release](https://github.com/kevin03L/jetson-nano-omarchy/releases) and put them in the local repository:
+
+   ```bash
+   sha256sum -c SHA256SUMS
+   install -d /var/lib/jetson-nano/repo
+   cp *.pkg.tar.zst /var/lib/jetson-nano/repo/
+   cd /var/lib/jetson-nano/repo && repo-add nano.db.tar.gz *.pkg.tar.zst
+   ```
+
+   Then `bash scripts/build-nano-stack.sh` builds and installs the rest (Mesa, Hyprland, CUDA...). It downloads
+   NVIDIA's files from NVIDIA. Run it with `--dry-run` first.
+5. **Reboot.** The `nano-cuda` entry starts the desktop and CUDA at the stock clocks.
+6. **Check.** `/usr/lib/nanoblas/gemm_test` must report no failure.
+
+### Options
+
+- **Higher clocks**: a separate boot entry, a copy of `nano-cuda` plus
+  `nvgpu.gpu_max_khz=1152000 clk_tegra124_dfll_fcpu.max_khz=1785000 nano.cpu_max_khz=1785000`.
+  Keep `nano-cuda` as the fallback.
+- **Supply**: `SUPPLY_W=20` in `/etc/jetson-nano/power.conf` for the 12 V / 5 A adapter.
+- **Fan**: `/etc/jetson-nano/fan.conf` (an example is installed).
+- **Boot screen**: `omarchy/nano/bootlogo.py` for the first logo (it saves the original one), Plymouth theme
+  `jetson-nano` for the loading screen. You supply the pictures ([docs/j202-plan.md](docs/j202-plan.md)).
+
+## Boot
+
+```mermaid
+flowchart LR
+  A[TegraBoot / cboot<br/>logo, BMP partition] --> B[U-Boot<br/>menu on serial]
+  B --> C[linux-nano<br/>/boot on the eMMC]
+  C --> D[initramfs<br/>tegra-drm, Plymouth]
+  D --> E[NVMe root<br/>SDDM, Hyprland]
+```
+
+| Entry | Use |
+|---|---|
+| `nano-cuda` | desktop and CUDA, stock clocks (recommended fallback) |
+| `nano` | nouveau driver, no CUDA |
+| `nano-oc` (add it yourself) | desktop and CUDA, higher clocks |
+| `mainline`, `nvme` | Arch Linux ARM's kernel |
+
+## What this fork fixes
+
+| Problem | Fix |
+|---|---|
+| The GPU never came back after its rail was cut | L4T's power sequence (nvgpu 0002 to 0004, kernel 0106): 3700 cycles, 0 failures |
+| The GPU stayed at 537 MHz after some suspends | kernel 0110 (workqueue) |
+| Suspends over 64 s reset the board | kernel 0113 (PMIC watchdog) |
+| The first suspend after a boot never came back | kernel 0114 (UART A clock) |
+| Suspend: memory and SMMU not restored | kernel 0107 and 0109 |
+| Power sensor silent after a suspend | kernel 0111 |
+| eMMC sometimes missing at boot, HDMI without 5 V | J202 device tree |
+| Session logout hung (Bluetooth) | stop signal of `bt-agent` |
+
+Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 
 ## Known issues
 
-- **An extra silent reset on some warm reboots.** About one warm reboot in three resets once more about
-  20 s in, with no log, then boots normally. It predates the current kernel and is under investigation.
-- **The nouveau fallback entry** times out in its graphics engine under Hyprland. Use it for recovery,
-  not as a desktop.
-- **Window-surface Vulkan** (`VK_KHR_wayland/xcb/xlib_surface`) is hidden, because NVIDIA's driver hangs
-  presenting on mainline. Vulkan apps fall back to OpenGL on Zink; compute and offscreen Vulkan work.
-- **CUDA math libraries.** Only the cuBLAS subset in nanoblas exists for sm_53. cuFFT, cuDNN, TensorRT
-  and NVIDIA's other libraries cannot run on this GPU with CUDA 12.
-- **Power off** halts the board but does not cut power (the PMIC's `system-power-controller` is not in
-  the device tree yet).
-- **HDMI hot-plug and EDID** do not work on mainline; the mode is forced on the kernel command line.
+- No test of several hours at the Performance and Maximum clocks.
+- Wake from suspend by keyboard or button: not tested.
+- No HDMI hot-plug; connect the monitor before booting.
+- Power off does not really cut the power.
+- The install from the release packages has not been repeated from a blank board.
+- No cuFFT, cuDNN or TensorRT: NVIDIA no longer ships them for this GPU with CUDA 12.
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `docs/` | engineering record, plans, decisions (ADRs), boot chain and recovery |
-| `packaging/` | Arch packages: `linux-nano` kernel, `nvgpu-nano`, `nvidia-l4t-r36`, `nvidia-l4t-gm20b-firmware`, `jetson-nano-board`, `hyprland-nano`, `aquamarine-nano`, `mesa-tegra`, `omarchy-nano`, `gcc13`, `cuda-nano`, `nanoblas` |
-| `omarchy/` | provisioning, platform detection and config files for the Nano |
-| `tools/cuda-e*/` | CUDA experiments: E0 desk checks, E2 nvgpu/nvmap builds, E4 power-on, E5 smoke test |
-| `scripts/` | SD-card build, the Nano stack builder (`build-nano-stack.sh`), boot evidence and diagnostics helpers |
-| `results/` | logs and measurements (sanitised with `tools/sanitize-log.py`) |
-| `tests/` | smoke and regression test plans |
-
-The NVIDIA driver ports live in forks of OE4T's mirrors, branch `mainline-7.2`:
-[Kristianaaron/linux-nvgpu](https://github.com/Kristianaaron/linux-nvgpu) and
-[Kristianaaron/linux-nv-oot](https://github.com/Kristianaaron/linux-nv-oot).
-
-## Safety
-
-The scripts never write the QSPI bootloader. `scripts/build-sd-image-mac.sh` refuses to overwrite a
-card that holds an L4T system and requires `ROOT_PASS` for the initial password (change it after the
-first boot). See [docs/rollback-recovery.md](docs/rollback-recovery.md) before touching a card.
+| `docs/` | engineering record; [j202-plan.md](docs/j202-plan.md) for this board |
+| `packaging/` | Arch packages: kernel, nvgpu, firmware, board policy, Hyprland, Mesa, CUDA, nanoblas |
+| `images/mainline-kernel/j202/` | J202 device tree |
+| `omarchy/` | provisioning and configuration files |
+| `scripts/` | eMMC flash, kernel cross build, stack builder |
+| `results/`, `tests/`, `tools/` | measurements, test plans, CUDA experiments |
 
 ## Credits
 
-This builds on other people's work:
+J202 version: kevin03L, with Claude (Anthropic). It builds on other people's work:
 
 | Who | What | Source | Licence |
 |---|---|---|---|
+| Kristianaaron | the original project: nvgpu, nvmap and CUDA 12 ports, Nano packages | [Kristianaaron/jetson-nano-omarchy](https://github.com/Kristianaaron/jetson-nano-omarchy) | MIT, patches GPL-2.0 |
 | NVIDIA | nvgpu and nvidia-oot drivers, L4T firmware and userspace | [nv-tegra.nvidia.com](https://nv-tegra.nvidia.com) | GPL-2.0 (drivers); NVIDIA licence (firmware, userspace, not redistributed here) |
 | OE4T (OpenEmbedded for Tegra) | maintained mirrors and patches of NVIDIA's R36 drivers | [OE4T/linux-nvgpu](https://github.com/OE4T/linux-nvgpu), [OE4T/linux-nv-oot](https://github.com/OE4T/linux-nv-oot) | GPL-2.0 |
 | Arch Linux ARM (Kevin Mihelich, graysky) | `linux-aarch64` PKGBUILD, config and patches that `linux-nano` derives from | [archlinuxarm/PKGBUILDs](https://github.com/archlinuxarm/PKGBUILDs) | GPL-2.0 (kernel) |
@@ -103,7 +160,7 @@ This builds on other people's work:
 | hyprwm (Vaxry and contributors) | Hyprland and aquamarine | [hyprwm/Hyprland](https://github.com/hyprwm/Hyprland), [hyprwm/aquamarine](https://github.com/hyprwm/aquamarine) | BSD-3-Clause |
 | Mesa, nouveau and Linux Tegra maintainers | GM20B graphics, Tegra210 support, EMC driver (Joseph Lo, Thierry Reding) | [mesa](https://gitlab.freedesktop.org/mesa/mesa), [kernel.org](https://kernel.org) | MIT / GPL-2.0 |
 
-Not affiliated with or endorsed by NVIDIA, Omarchy, Basecamp or Arch Linux ARM.
+Not affiliated with or endorsed by NVIDIA, Seeed, Omarchy, Basecamp or Arch Linux ARM.
 
 ## Licence
 

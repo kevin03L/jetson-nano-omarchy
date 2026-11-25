@@ -24,7 +24,7 @@ fi
 [[ $EUID -ne 0 ]] || die "run as a normal user (makepkg refuses root)"
 
 OUT=$(realpath -m "${1:-$here/out/linux-nano}")
-W=${WORK:-/var/tmp/linux-nano-cross-$USER}
+W=${WORK:-/var/tmp/linux-nano-cross}
 mkdir -p "$W/bin" "$W/src" "$OUT"
 
 # Cross toolchain under the names the kernel Makefile uses (CROSS_COMPILE=aarch64-linux-gnu-).
@@ -53,6 +53,8 @@ rm -rf "$W/pkg" && cp -a "$here/packaging/linux-nano" "$W/pkg"
 # A Windows checkout may have CRLF line ends: makepkg refuses them and git apply fails on them.
 find "$W/pkg" -type f -exec sed -i 's/\r$//' {} +
 cd "$W/pkg"
+# no user or host name of the build machine in the kernel
+export KBUILD_BUILD_USER=nano KBUILD_BUILD_HOST=j202
 export PATH="$W/bin:$PATH" ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
 makepkg --config "$W/makepkg.conf" --nodeps --cleanbuild --force --noconfirm
 ls -l "$OUT"
