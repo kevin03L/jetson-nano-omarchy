@@ -1,0 +1,146 @@
+Subject: [PATCH] zink: import linear video planes with NVIDIA
+
+NVIDIA's proprietary Vulkan driver (540 branch, Tegra X1) has no DRM format
+modifier for R8, RG8, R16 and RG16, not even LINEAR, so Zink refuses the planes
+of a decoded picture and players have to copy it. It imports them as images
+with linear tiling, which is the same layout when the line length is the same.
+
+Report LINEAR for these formats (and for NV12 and P010, external only), import
+at the offset of the plane after comparing the line length with the driver's,
+forget the modifiers of such an image afterwards, and try linear images without
+INPUT_ATTACHMENT, which the driver refuses for them.
+
+Checked byte for byte with EGL imports at an offset, and with mpv and Firefox.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -595,6 +595,13 @@
+       n = emit_usage_candidates(c, n, tiling, usage, flags, false, have_fmtlist, always_mutable, max);
+    }
+ 
++   /* NVIDIA: a linear image can be a color attachment, but not an input attachment */
++   if (tiling == VK_IMAGE_TILING_LINEAR && zink_driverid(screen) == VK_DRIVER_ID_NVIDIA_PROPRIETARY &&
++       !util_format_is_depth_or_stencil(templ->format)) {
++      VkImageUsageFlags u = usage & ~(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT);
++      n = emit_usage_candidates(c, n, tiling, u, flags, false, have_fmtlist, always_mutable, max);
++   }
++
+    return n;
+ }
+ 
+@@ -1708,6 +1715,28 @@
+    }
+ 
+    alloc_info->need_dedicated = get_image_memory_requirement(screen, obj, num_planes, &reqs);
++
++   /* a dma-buf imported as a linear image, without a modifier: the layout is the driver's, it has to
++    * be the one of the dma-buf
++    */
++   unsigned import_offset = 0;
++   if (ici.tiling == VK_IMAGE_TILING_LINEAR && alloc_info->whandle &&
++       alloc_info->external == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
++      VkImageSubresource isr = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
++      VkSubresourceLayout layout;
++
++      VKSCR(GetImageSubresourceLayout)(screen->dev, obj->image, &isr, &layout);
++      import_offset = alloc_info->whandle->offset;
++      if (num_planes > 1 || layout.offset || layout.rowPitch != alloc_info->whandle->stride ||
++          import_offset % reqs.alignment) {
++         mesa_logw("ZINK: cannot import a linear dma-buf with %u bytes in a line (%u for the driver), at %u",
++                   alloc_info->whandle->stride, (unsigned)layout.rowPitch, import_offset);
++         return roc_fail_and_cleanup_object;
++      }
++      reqs.size += import_offset;
++      alloc_info->need_dedicated = false;
++   }
++
+    if (templ->usage == PIPE_USAGE_STAGING && ici.tiling == VK_IMAGE_TILING_LINEAR)
+       alloc_info->flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    else
+@@ -1721,6 +1750,7 @@
+    if (retval != roc_success)
+       return retval;
+ 
++   obj->offset += import_offset;
+    return bind_image_memory(screen, obj, templ, &ici, num_planes, alloc_info);
+ }
+ 
+@@ -1885,6 +1915,13 @@
+    if (!res->obj)
+       goto fail;
+ 
++   /* no modifier in the end: the rest of the driver must not look for one */
++   if (linear && whandle && res->modifiers && res->obj->modifier == DRM_FORMAT_MOD_INVALID && !res->obj->is_aux) {
++      FREE(res->modifiers);
++      res->modifiers = NULL;
++      res->modifiers_count = 0;
++   }
++
+    res->queue = VK_QUEUE_FAMILY_IGNORED;
+    res->internal_format = templ->format;
+    if (templ->target == PIPE_BUFFER) {
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2668,12 +2668,48 @@
+    }
+ }
+ 
++/* NVIDIA's driver (seen on Tegra, 540 branch) has no modifier for the formats of video planes, not
++ * even LINEAR, but imports them as linear images, which is the same thing: the layout of the image
++ * is compared with the one of the dma-buf (zink_resource.c).
++ */
++static bool
++linear_dmabuf_without_modifier(struct zink_screen *screen, enum pipe_format format)
++{
++   if (zink_driverid(screen) != VK_DRIVER_ID_NVIDIA_PROPRIETARY ||
++       !screen->info.have_EXT_image_drm_format_modifier ||
++       zink_get_modifier_props(screen, format)->drmFormatModifierCount)
++      return false;
++
++   switch (format) {
++   case PIPE_FORMAT_NV12:
++   case PIPE_FORMAT_P010:
++      /* sampled as two planes */
++      return linear_dmabuf_without_modifier(screen, format == PIPE_FORMAT_NV12 ? PIPE_FORMAT_R8_UNORM : PIPE_FORMAT_R16_UNORM);
++   case PIPE_FORMAT_R8_UNORM:
++   case PIPE_FORMAT_R8G8_UNORM:
++   case PIPE_FORMAT_R16_UNORM:
++   case PIPE_FORMAT_R16G16_UNORM:
++      return zink_get_format_props(screen, format)->linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
++   default:
++      return false;
++   }
++}
++
+ static void
+ zink_query_dmabuf_modifiers(struct pipe_screen *pscreen, enum pipe_format format, int max, uint64_t *modifiers, unsigned int *external_only, int *count)
+ {
+    struct zink_screen *screen = zink_screen(pscreen);
+    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
+    *count = props->drmFormatModifierCount;
++   if (linear_dmabuf_without_modifier(screen, format)) {
++      *count = 1;
++      if (max > 0) {
++         modifiers[0] = 0; /* DRM_FORMAT_MOD_LINEAR */
++         if (external_only)
++            external_only[0] = util_format_get_num_planes(format) > 1;
++      }
++      return;
++   }
+    for (int i = 0; i < MIN2(max, *count); i++) {
+       modifiers[i] = props->pDrmFormatModifierProperties[i].drmFormatModifier;
+       if (external_only)
+@@ -2689,6 +2725,11 @@
+    for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
+       if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
+          return true;
++   if (modifier == 0 /* DRM_FORMAT_MOD_LINEAR */ && linear_dmabuf_without_modifier(screen, format)) {
++      if (external_only)
++         *external_only = util_format_get_num_planes(format) > 1;
++      return true;
++   }
+    return false;
+ }
+ 
