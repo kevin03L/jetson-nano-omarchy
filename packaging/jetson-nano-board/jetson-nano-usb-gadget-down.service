@@ -1,0 +1,15 @@
+[Unit]
+Description=Jetson Nano micro-USB device port: disconnect before its console stops
+# Closing ttyGS0 waits 15 s for a host that does not read it, and systemd with it, at every
+# shutdown. A disconnected port closes at once. This unit stops before the console.
+After=serial-getty@ttyGS0.service jetson-nano-usb-gadget.service
+ConditionPathExists=/sys/kernel/config/usb_gadget/jetson-nano/UDC
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/true
+ExecStop=/bin/sh -c 'echo "" > /sys/kernel/config/usb_gadget/jetson-nano/UDC'
+
+[Install]
+WantedBy=multi-user.target

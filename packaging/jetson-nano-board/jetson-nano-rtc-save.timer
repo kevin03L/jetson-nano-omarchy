@@ -1,0 +1,9 @@
+[Unit]
+Description=Write the synchronized time to the battery-backed clock, after the start and each hour
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

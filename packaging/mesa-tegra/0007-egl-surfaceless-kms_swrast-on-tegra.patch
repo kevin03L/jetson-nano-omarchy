@@ -1,0 +1,36 @@
+Subject: [PATCH] egl/surfaceless: kms_swrast on tegra
+
+The decoder process of Firefox checks that it can import the pictures of the
+video decoder with EGL, in a sandbox where the GPU of a Tegra is out of reach.
+EGL then falls back to software rendering, but without DRM, so without dma-buf
+imports, and Firefox gives up hardware decoding. With kms_swrast, as on
+virtio_gpu, the import works.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+18:02:49
+--- a/src/egl/drivers/dri2/platform_surfaceless.c
++++ b/src/egl/drivers/dri2/platform_surfaceless.c
+@@ -272,14 +272,19 @@ surfaceless_probe_device(_EGLDisplay *di
+ 
+       disp->Device = dev_list;
+       if (swrast) {
+-         /* Use kms swrast only with vgem / virtio_gpu.
++         /* Use kms swrast only with vgem / virtio_gpu / tegra.
+           * virtio-gpu fallbacks to software rendering when 3D features
+           * are unavailable since 6c5ab, and kms_swrast is more
+           * feature complete than swrast.
++          * tegra: where a sandbox hides the GPU (the decoder process of
++          * Firefox), the pictures of the video decoder can still be imported.
+           */
+-         if (driver_name && (strcmp(driver_name, "vgem") == 0 ||
+-                             strcmp(driver_name, "virtio_gpu") == 0))
++         char *kernel_name = loader_get_kernel_driver_name(dri2_dpy->fd_render_gpu);
++         if ((driver_name && (strcmp(driver_name, "vgem") == 0 ||
++                              strcmp(driver_name, "virtio_gpu") == 0)) ||
++             (kernel_name && strcmp(kernel_name, "tegra") == 0))
+             dri2_dpy->driver_name = strdup("kms_swrast");
++         free(kernel_name);
+          free(driver_name);
+       } else {
+          /* Use the given hardware driver */

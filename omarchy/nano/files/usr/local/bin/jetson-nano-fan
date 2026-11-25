@@ -7,6 +7,6 @@ for i in $(seq 1 60); do grep -qx cpu-thermal /sys/class/thermal/thermal_zone*/t
 for z in /sys/class/thermal/thermal_zone*; do
   [[ $(cat "$z/type") == cpu-thermal ]] || continue
   for t in "$z"/trip_point_*_type; do
-    [[ $(cat "$t") == active ]] && echo "$FAN_ON_MC" > "${t%_type}_temp"
+    if [[ $(cat "$t") == active ]]; then echo "$FAN_ON_MC" > "${t%_type}_temp"; fi
   done
 done

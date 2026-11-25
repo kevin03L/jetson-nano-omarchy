@@ -1,0 +1,3 @@
+# vaapi-tegra: memory the CPU reads at full speed, for decoded pictures (the video group, like the
+# GPU devices, and the user at the screen)
+SUBSYSTEM=="dma_heap", KERNEL=="system", GROUP="video", MODE="0660", TAG+="uaccess"

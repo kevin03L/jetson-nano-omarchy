@@ -1,0 +1,13 @@
+[Unit]
+Description=Take the time of the battery-backed clock, give it back at shutdown
+Documentation=https://github.com/Kristianaaron/jetson-nano-omarchy
+DefaultDependencies=no
+After=systemd-timesyncd.service local-fs.target
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/jetson-nano/rtc-clock load
+ExecStop=/usr/lib/jetson-nano/rtc-clock save

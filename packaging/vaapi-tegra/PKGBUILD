@@ -1,0 +1,35 @@
+# vaapi-tegra: hardware video decoding (H.264, H.265 8/10 bits, VP9, VP8, MPEG-2) with the
+# Tegra210's NVDEC, through VA-API.
+#
+# The driver is in driver/ (it started from Mikko Perttunen's vaapi-tegra-driver). It uses mainline's
+# tegra-drm, so it does not depend on the GPU driver. The NVDEC firmware is in
+# nvidia-l4t-gm20b-firmware. Players that show the pictures without copying them need mesa 1.8.
+#
+# The device tree must power NVJPG together with NVDEC (images/mainline-kernel/fix-video-dtb.sh);
+# the driver refuses to decode otherwise.
+pkgname=vaapi-tegra
+pkgver=2.1
+pkgrel=3
+pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264, H.265, VP9, VP8, MPEG-2)"
+arch=(aarch64)
+url="https://github.com/Kristianaaron/jetson-nano-omarchy"
+license=(MIT LGPL-2.1-or-later)
+depends=(libva libdrm gcc-libs nvidia-l4t-gm20b-firmware)
+makedepends=(cmake)
+options=(!debug)
+source=(70-vaapi-tegra.rules firefox-jetson-nano.js)
+sha256sums=('dfd41a77996d12a8cd469ff35c2d126a6f432db945eb7fb2e7c79555bf8ffa64'
+            'fd4e60ce937fb3473e372887ce51cf9f962caa3f4080327283aab61549b75901')
+
+build() {
+  cmake -S "$startdir/driver" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DLIBVA_DRIVERS_PATH=lib/dri
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 70-vaapi-tegra.rules -t "$pkgdir/usr/lib/udev/rules.d/"
+  install -Dm644 firefox-jetson-nano.js "$pkgdir/usr/lib/firefox/browser/defaults/preferences/jetson-nano.js"
+  install -Dm644 "$startdir/driver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

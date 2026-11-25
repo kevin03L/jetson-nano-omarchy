@@ -143,4 +143,55 @@ Fait :
   puis `plymouth-set-default-theme jetson-nano` et `mkinitcpio -p linux-nano`. Essayé : `nano-oc`, `nano-cuda`, `nano` (nouveau).
 - Extinction réelle (2026-11-25) : `system-power-controller` sur le PMIC (ajouté par `make-j202-nano-dtb.sh`). `SFT_RST_WK` est à 0 et
   `WK_ALARM1` à 1 (registre 0x42 = 0x5f). `systemctl poweroff` coupe la carte ; l'alarme de rtc0 la rallume à l'heure dite.
-- Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI.
+- Arrêt en 1,8 s au lieu de 17 (2026-11-25) : systemd attendait 15 s la console du port micro-USB (`gs_close`) ; jetson-nano-usb-gadget-down la
+  débranche avant. Redémarrage : 54 → 38 s. 12 redémarrages à chaud : 0 reset parasite (défaut du projet d'origine).
+- Noyau précédent gardé (`keep-kernel`, crochets pacman) : modules, module GPU, Image, initramfs, DTB, entrée `nano-prev`. Essayé -5 → -4 → -5.
+- `scripts/j202-root-to-nvme.sh` : racine de l'eMMC vers le NVMe ; essayé sur un disque virtuel seulement.
+- Débit mémoire après une veille (linux-nano 7.2.11-6, 0115) : le micrologiciel remet PLLM à 1305,6 MHz, allumée, et le noyau la laisse ; mémoire
+  18 % plus lente pour toujours (GPU 18,6 → 15,4 Go/s, glmark2 530 → 430). Corrigé : 18,64 Go/s après 9 veilles sur 9.
+- Essai long (7.2.11-5, nvgpu -7, 1785 + 1152, 18 cycles, environ 50 min) : CPU + GPU + mémoire + NVMe vérifiés, 3D, veille : 0 erreur ; 13,9 W, 43 °C.
+- Décodage vidéo matériel (2026-11-25, vaapi-tegra -1, nvidia-l4t-gm20b-firmware -2, `fix-video-dtb.sh`) : NVDEC ne répond que si le domaine NVJPG
+  est alimenté ; sans cette dépendance dans le device tree, le premier accès bloque la carte (le pilote refuse alors de décoder). VIC à 408 MHz au
+  lieu de 19,2. H.264 identique au logiciel (baseline, high, 16 références, tranches, entrelacé, 4K), MPEG-2 à 70 dB (arrondi). 1080p avec relecture :
+  116 images/s et 0,6 s de processeur au lieu de 3,9 (180 images) ; 4K : 30 images/s. mpv s'en sert seul (`hwdec=auto-safe` d'Omarchy, vaapi-copy) :
+  1080p30 64 % d'un cœur au lieu de 118 ; 1080p60 91 % au lieu de 208, avec `profile=fast` (sinon 12 images perdues par seconde, aussi en logiciel).
+  Essayé : 3 flux à la fois, flux abîmé, 3 veilles en plein décodage, mémoire stable. Chromium décode toujours avec le processeur (rien de changé).
+  Pas de H.265, VP9, AV1 ni 10 bits. MPEG-2 720 lignes entrelacé (inexistant en pratique) : erreurs.
+- Décodage vidéo, deuxième version (2026-11-25, vaapi-tegra 2.1, mesa 1.8, `fix-video-dtb.sh`), limites de la première levées :
+  - pilote réécrit (`packaging/vaapi-tegra/driver`) : H.264, H.265 8 et 10 bits, VP9 (profil 0) et VP8 identiques au logiciel (images B, tranches,
+    tuiles, prédiction pondérée, matrices, 854 de large, 1080p, 4K) ; MPEG-2 à 67-70 dB, 720 lignes entrelacé compris. Travaux en file (8), VIC enchaîné
+    par le syncpoint. La puce n'a ni AV1, ni VP9 10 bits, ni H.264 10 bits ;
+  - NVDEC et VIC à 537,6 MHz sur PLLC2 (614,4 marche aussi, mais la tension du cœur est fixe, 1,075 V). Images par seconde, décodage seul / avec
+    relecture : H.264 1080p 207 / 199 (116 avant), 4K 59 / 54 (30) ; H.265 1080p 317 / 290, 4K 78 / 64 ; H.265 10 bits 1080p 263 / 170, 4K 66 / 37 ;
+    VP9 1080p 372 / 333, 4K 94 / 74 ;
+  - le VIC se bloquait quand deux programmes lui donnaient de petites copies (en quelques secondes, quelle que soit la fréquence) : l'hôte ne sépare
+    que les travaux d'un même programme. Chaque travail attend maintenant que le moteur soit au repos (incrément OP_DONE puis attente relative) :
+    225 000 copies de 6 programmes sans un blocage, sans coût mesurable ;
+  - affichage sans copie : 0006 fait importer les plans linéaires par Zink (le pilote NVIDIA n'a aucun modificateur pour R8, RG8, R16, RG16 ; lignes
+    multiples de 128 octets, tampon multiple de 64 Ko). mpv sans réglage (hwdec=auto-safe choisit vaapi), processeur
+    en % (sur 400), 0 image perdue : 1080p60 76 (logiciel 203), H.265 10 bits 1080p30 55 (323), 4K30 H.264 67 (198), 4K30 H.265 69 (325) ;
+  - Firefox 158 : décodage matériel sans copie, bac à sable actif, sans réglage. Il a fallu ne plus lire /sys dans le pilote (la puce se reconnaît à
+    l'ouverture du canal) et 0007 (Firefox vérifie l'image avec EGL dans le processus de décodage, qui n'a pas accès au GPU). 1080p60 113 % au lieu
+    de 246, 4K30 109 au lieu de 272, 4K VP9 110 au lieu de 306, H.265 10 bits 1080p30 76 au lieu de 303 (et 14 images perdues au lieu de 428) ;
+  - Firefox ne propose plus l'AV1 aux sites (vaapi-tegra 2.1-2, valeur par défaut modifiable dans about:config) : ils envoient de la VP9 ou du H.264 ;
+  - le VIC du Tegra210 bloque sur tous les formats 10 bits : un P010 est copié comme un NV12 deux fois plus large. L'x265 d'Arch Linux ARM est en
+    8 bits seulement et le dit à peine : fabriquer les fichiers d'essai 10 bits ailleurs, et vérifier `pix_fmt` avec ffprobe ;
+  - VP9 à taille variable (références redimensionnées, visioconférence) : un lecteur crée un autre contexte au milieu du flux, l'état du décodeur suit
+    le flux par ses surfaces ; 90 images identiques. Une image annoncée plus grande que sa surface est refusée, un objet détruit par un fil reste
+    tant qu'un autre s'en sert ;
+  - 4 veilles de 12 s en pleine lecture (mpv sans copie et trois décodages contrôlés) : 38 passages identiques, aucune erreur ;
+  - code : 0 avertissement (-Wall -Wextra -Wshadow), 0 erreur AddressSanitizer / UBSan (17 vidéos, 14 flux abîmés), 0 fuite ;
+  - essayé : 30 flux abîmés (10 fichiers, tous les codecs), 4 codecs à la fois, 12 arrêts par kill -9, mémoire stable, aller et retour PutImage ;
+  - Chromium d'Arch Linux ARM est compilé sans VA-API : il décode avec le processeur.
+- Démarrage en boucle (2026-11-25 au soir, deux fois) : la carte se remettait à zéro pendant que Linux sondait l'eMMC, avec toutes les entrées, ancien
+  noyau compris, et démarrait dès que le nœud de l'eMMC était désactivé depuis U-Boot. Déclenché par un redémarrage juste après une écriture dans
+  /boot ; cause exacte non prouvée (HS200 à 200 MHz, ou PLL_C4 qui passe par 1 GHz). `fix-emmc-dtb.sh` (et le DTS, linux-nano -7) : eMMC à 51 MHz sur
+  PLL_P, le mode de U-Boot, pour toutes les entrées. Depuis : la même manœuvre et une remise à zéro par le chien de garde du PMIC démarrent.
+- Carte figée à l'arrêt d'une session ou d'un service sur un terminal, puis remise à zéro par le chien de garde (jetson-nano-board -15) : systemd
+  réinitialise `ttyGS0` (console de la prise micro-USB) avant agetty ; si l'hôte ne lit pas le port, il reste dans cette écriture avec le verrou de
+  `/dev/console`, et PID 1 attend ce verrou pour toujours. agetty ouvre maintenant le port lui-même. Reproduit avant, 1 s après.
+- Pile du connecteur RTC 2 broches (J202) : elle alimente la RTC du PMIC (`rtc0`, max77620 ; pas d'autre puce RTC sur les bus I2C). Le noyau ne la lit ni
+  ne l'écrit (pilote en module, RTC_HCTOSYS et RTC_SYSTOHC absents) : elle restait en 2000. jetson-nano-board -18 (`rtc-clock`) : heure prise au
+  démarrage quand elle est plus récente, écrite une fois synchronisée, chaque heure et à l'arrêt. Le PMIC charge la pile à 2,5 V à chaque mise sous
+  tension (CNFGBBC = 0x41) : coupé, une pile bouton n'est pas rechargeable (`RTC_CHARGE=ml` dans `/etc/jetson-nano/rtc.conf` : 3,0 V et 50 µA pour une pile ML, -18).
+- Problèmes connus du projet d'origine, pas revus ici : pas de hot-plug HDMI (à essayer).

@@ -15,14 +15,15 @@ A research project, not supported by NVIDIA, Seeed or Omarchy.
 
 ## Status
 
-Tested on one board, release `j202-v1.1` (November 2026).
+Tested on one board, release `j202-v1.2` (November 2026).
 
 | Area | State |
 |---|---|
 | Omarchy 4.5 desktop (Hyprland, SDDM) | works, rendered by the GPU (Mesa Zink on NVIDIA's Vulkan 1.3) |
-| Kernel `linux-nano` 7.2.11-5 | 14 Tegra210 patches; root on an NVMe SSD, `/boot` on the eMMC |
-| `nvgpu-nano` 36.4.20261121-7 | loads at boot; 76.8 to 921.6 MHz, 1152 MHz as an option |
+| Kernel `linux-nano` 7.2.11-7 | 15 Tegra210 patches; root on an NVMe SSD, `/boot` on the eMMC |
+| `nvgpu-nano` 36.4.20261121-9 | loads at boot; 76.8 to 921.6 MHz, 1152 MHz as an option |
 | CUDA 12.9 | `nvcc`, runtime, `nanoblas` (a cuBLAS subset) |
+| Hardware video decoding | H.264, H.265 (8 and 10 bits), VP9, VP8, MPEG-2; zero copy in mpv and Firefox; no AV1 in this chip |
 | HDMI | 1920x1080 at 60 Hz, EDID read; picture 5 s after the kernel starts |
 | Memory | 1600 MHz (cboot's EMC tables), 15 to 20 GB/s seen from CUDA |
 | 1 Gb/s Ethernet, NVMe, USB | work |
@@ -30,6 +31,21 @@ Tested on one board, release `j202-v1.1` (November 2026).
 | Suspend (SC7) | works, including the first one after a boot and one of 150 s; timer wake |
 | Power modes | four modes, graphical menu and command line |
 | Graphical boot | replaceable first boot logo, Plymouth loading screen |
+
+### Video
+
+`vaapi-tegra` drives the chip's NVDEC through VA-API. Frames per second, decoding only:
+
+| | 1080p | 4K |
+|---|---|---|
+| H.264 | 207 | 59 |
+| H.265 | 317 | 78 |
+| H.265 10 bits | 263 | 66 |
+| VP9 | 372 | 94 |
+
+mpv (no option needed), CPU in % of one core, hardware / software: 1080p60 76 / 203, 4K30 H.265 69 / 325. Firefox
+decodes in hardware with its sandbox on. Chromium does not: Arch Linux ARM builds it without VA-API.
+MPEG-2 differs from software by rounding; the other codecs are identical to it.
 
 ### Power modes
 
@@ -122,6 +138,10 @@ flowchart LR
 | Power sensor silent after a suspend | kernel 0111 |
 | eMMC sometimes missing at boot, HDMI without 5 V | J202 device tree |
 | Session logout hung (Bluetooth) | stop signal of `bt-agent` |
+| Memory 18 % slower after a suspend | kernel 0115 (PLLM) |
+| The board reset at boot while the eMMC was probed, again and again | eMMC at 51 MHz on PLL_P (cause not proven) |
+| The board froze when a session or a terminal service stopped | the micro-USB console no longer blocks systemd |
+| The clock was wrong until the network answered | `rtc-clock`: the PMIC's clock is read and written |
 
 Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 
@@ -130,7 +150,11 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 - Performance and Maximum: 2 hours of checked CPU, GPU and memory load at Maximum (14.4 W, 44 °C, 0 errors), nothing longer; 3D not included.
 - Wake from suspend by keyboard or button: not tested.
 - No HDMI hot-plug; connect the monitor before booting.
-- After a power off, the board starts again with an RTC alarm (tested); plugging the 12 V supply again and the power button header are not tested.
+- After a power off, the board starts again with an RTC alarm (tested); it also started when the 12 V supply was plugged again (once). The power button header is not tested.
+- Video: endurance tests of 25 minutes at most. Several damaged files, four suspends during playback: no hang.
+- RTC battery (J202 2-pin connector): the clock was not kept in the only test (an ML cell, just fitted). Charging is off
+  unless `/etc/jetson-nano/rtc.conf` says `RTC_CHARGE=ml`; never with a CR cell.
+- The login prompt of the micro-USB console was not tried from a host since its fix.
 - The install from the release packages has not been repeated from a blank board.
 - No cuFFT, cuDNN or TensorRT: NVIDIA no longer ships them for this GPU with CUDA 12.
 
@@ -139,7 +163,7 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 | Path | Contents |
 |---|---|
 | `docs/` | engineering record; [j202-plan.md](docs/j202-plan.md) for this board |
-| `packaging/` | Arch packages: kernel, nvgpu, firmware, board policy, Hyprland, Mesa, CUDA, nanoblas |
+| `packaging/` | Arch packages: kernel, nvgpu, firmware, board policy, Hyprland, Mesa, CUDA, nanoblas, video decoding |
 | `images/mainline-kernel/j202/` | J202 device tree |
 | `omarchy/` | provisioning and configuration files |
 | `scripts/` | eMMC flash, kernel cross build, stack builder |
@@ -158,6 +182,9 @@ J202 version: kevin03L, with Claude (Anthropic). It builds on other people's wor
 | Omarchy (DHH and contributors) | the desktop this port runs | [basecamp/omarchy](https://github.com/basecamp/omarchy) | MIT |
 | Omarchy packagers | `hyprland` and `aquamarine` package recipes and patches that `hyprland-nano` and `aquamarine-nano` extend | [omacom/omarchy-pkgs](https://github.com/omacom/omarchy-pkgs) | per package |
 | hyprwm (Vaxry and contributors) | Hyprland and aquamarine | [hyprwm/Hyprland](https://github.com/hyprwm/Hyprland), [hyprwm/aquamarine](https://github.com/hyprwm/aquamarine) | BSD-3-Clause |
+| Mikko Perttunen (cyndis), NVIDIA | vaapi-tegra-driver, the start of `vaapi-tegra` | [cyndis/vaapi-tegra-driver](https://github.com/cyndis/vaapi-tegra-driver) | MIT |
+| averne | nvtegra decoders for FFmpeg: what NVDEC expects for H.265, VP8 and VP9 | [averne/FFmpeg](https://github.com/averne/FFmpeg) | LGPL-2.1-or-later |
+| NVIDIA | NVDEC class headers (open-gpu-doc) | [NVIDIA/open-gpu-doc](https://github.com/NVIDIA/open-gpu-doc) | MIT |
 | Mesa, nouveau and Linux Tegra maintainers | GM20B graphics, Tegra210 support, EMC driver (Joseph Lo, Thierry Reding) | [mesa](https://gitlab.freedesktop.org/mesa/mesa), [kernel.org](https://kernel.org) | MIT / GPL-2.0 |
 
 Not affiliated with or endorsed by NVIDIA, Seeed, Omarchy, Basecamp or Arch Linux ARM.

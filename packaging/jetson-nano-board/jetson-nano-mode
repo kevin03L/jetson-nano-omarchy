@@ -4,6 +4,7 @@
 #   jetson-nano-mode list       the modes this boot entry can run
 #   jetson-nano-mode set MODE   eco, normal, perf or max; kept over a reboot
 #   jetson-nano-mode menu       pick one in the Omarchy menu
+#   jetson-nano-mode bar        status for the bar widget
 set -u
 shopt -s nullglob
 . /usr/lib/jetson-nano/modes
@@ -63,6 +64,17 @@ status() {
   return 0
 }
 
+# for the bar widget: the mode, its name, the power, then the status lines
+bar() {
+  local m st
+  m=$(current)
+  st=$(status)
+  echo "$m"
+  name_of "$m"
+  awk -F' : |, ' '/^(Power|Puissance) /{ w = $2 } END { print w }' <<<"$st"
+  echo "$st"
+}
+
 menu() {
   local m cur opts=() sel label
   cur=$(current)
@@ -90,7 +102,8 @@ case ${1:-status} in
   status) status ;;
   list) for m in $(available); do printf '%s %s\t%s\n' "$([ "$m" = "$(current)" ] && echo '*' || echo ' ')" "$m" "$(mhz "$m")"; done ;;
   get) current ;;
+  bar) bar ;;
   set) [ $# -eq 2 ] || { echo "jetson-nano-mode set eco|normal|perf|max" >&2; exit 2; }; apply "$2" && status ;;
   menu) menu ;;
-  *) sed -n '2,6s/^# //p' "$0"; exit 2 ;;
+  *) sed -n '2,7s/^# //p' "$0"; exit 2 ;;
 esac

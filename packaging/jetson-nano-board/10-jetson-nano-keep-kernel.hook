@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Upgrade
+Target = linux-nano
+Target = nvgpu-nano
+
+[Action]
+Description = Saving the running kernel and its GPU modules...
+When = PreTransaction
+Exec = /usr/lib/jetson-nano/keep-kernel pre

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "jetson.power-mode",
+  "name": "Jetson power mode",
+  "version": "1.0.0",
+  "author": "jetson-nano-board",
+  "description": "Power mode of the Jetson Nano; click to change it",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "PowerMode.qml" },
+  "barWidget": {
+    "displayName": "Jetson power mode",
+    "description": "Power mode of the Jetson Nano; click to change it",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

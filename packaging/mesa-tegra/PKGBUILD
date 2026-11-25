@@ -3,7 +3,9 @@
 #  1.4: 0002 lets Zink pair the tegra-drm display with the render-only nvgpu Vulkan device;
 #  1.5: 0003 makes VK_KHR_maintenance5 optional, absent from NVIDIA's R36 Vulkan 1.3.251;
 #  1.6: 0004 falls back to the graphics queue when the sparse queue family cannot be created;
-#  1.7: 0005 drops the export struct on NVIDIA dma-buf imports, which read back empty otherwise)
+#  1.7: 0005 drops the export struct on NVIDIA dma-buf imports, which read back empty otherwise;
+#  1.8: 0006 imports the linear planes of decoded video with NVIDIA, 0007 lets the sandboxed decoder
+#  process of Firefox import them in software)
 # for the tegra wrapper (0001-tegra-fixes.patch: surface textures not unwrapped, unimplemented
 # context hooks forwarded as NULL calls, and the clear scissor dropped; all unfixed in main).
 # Same name, epoch and version as Arch Linux ARM's mesa so dependants are satisfied and
@@ -11,7 +13,7 @@
 
 pkgname=mesa
 pkgver=26.2.5
-pkgrel=1.7
+pkgrel=1.8
 epoch=1
 pkgdesc="Mesa for Jetson Nano (Tegra210): tegra + nouveau + zink gallium drivers, tegra wrapper fixes"
 arch=(aarch64)
@@ -28,14 +30,18 @@ source=("https://archive.mesa3d.org/mesa-$pkgver.tar.xz"{,.sig}
         0002-zink-pair-display-only-drm-with-render-only-gpu.patch
         0003-zink-make-VK_KHR_maintenance5-optional.patch
         0004-zink-fall-back-to-the-graphics-queue-for-sparse-binds.patch
-        0005-zink-no-export-info-on-dma-buf-imports-with-NVIDIA.patch)
+        0005-zink-no-export-info-on-dma-buf-imports-with-NVIDIA.patch
+        0006-zink-import-linear-video-planes-with-NVIDIA.patch
+        0007-egl-surfaceless-kms_swrast-on-tegra.patch)
 sha256sums=('794b3d1729075dae7ebd47c7283b7ca0cdb5dec668f7f11cc0a5d82f6138a0a5'
             'SKIP'
             'f2252c4df923748a6f5735789065f565a3d22196f29f59d7987795e93ff34d1a'
             'aac4c88078533f917fe848ddd6fb86cc1d4b4a249015d2d05557232ac26fac3b'
             'b8b3f1022f36b9bb455b1ea972b2eba4e2c93b4e9ec7421dad15d32f8b3fb570'
             '7c821ad57f1bb34e264156f14e51525ac3576a6b519b66bf12d85dfa937094e4'
-            'e2586167b240ed1bde7f1faed05928786e00cf7353fbde52f804393ce9e998be')
+            'e2586167b240ed1bde7f1faed05928786e00cf7353fbde52f804393ce9e998be'
+            '95700c132fb968f393aba7bab04e95106fdaf360e5817f1d0d342f11f91091bf'
+            '0e10d57479d489d1027e2c294c1678de90ce355bc45b0171754c9670beb7bd8d')
 validpgpkeys=('57551DE15B968F6341C248F68D8E31AFC32428A6') # Eric Engestrom, Mesa release manager
 
 prepare() {
@@ -45,6 +51,8 @@ prepare() {
   patch -Np1 -i ../0003-zink-make-VK_KHR_maintenance5-optional.patch
   patch -Np1 -i ../0004-zink-fall-back-to-the-graphics-queue-for-sparse-binds.patch
   patch -Np1 -i ../0005-zink-no-export-info-on-dma-buf-imports-with-NVIDIA.patch
+  patch -Np1 -i ../0006-zink-import-linear-video-planes-with-NVIDIA.patch
+  patch -Np1 -i ../0007-egl-surfaceless-kms_swrast-on-tegra.patch
 }
 
 build() {
