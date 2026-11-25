@@ -113,15 +113,19 @@ Fait :
     Le limiteur de puissance recrée aussi le capteur si besoin.
   - Veille de plus de 64 s : le watchdog du PMIC continuait et redémarrait la carte (0113) ; 150 s : réveil normal (une fois).
   - Première veille après un démarrage, console série endormie : le micrologiciel (ATF) écrit `BPMP not powered on` sur l'UART A, dont l'horloge
-    est coupée, et attend pour toujours. 4 blocages sur 4 ; 0114 garde l'horloge. **0114 pas encore essayé en veille.**
-  - CMA 256 Mo : plus d'échec d'allocation. Démarrage à froid validé (7.2.11-5, GPU 998 MHz). `nano-prev` (7.2.11-4) jamais démarré.
+    est coupée, et attend pour toujours. 4 blocages sur 4 ; 0114 garde l'horloge : 3 premières veilles sur 3 réussies
+    (30, 20 et 120 s), console série endormie, le message sort et la carte continue.
+  - CMA 256 Mo : plus d'échec d'allocation. Démarrage à froid validé (7.2.11-5, GPU 998 MHz). `nano-prev` (7.2.11-4) démarré : bureau, GPU, CUDA.
+    La mise à jour de nvgpu-nano retire son module de l'ancien noyau : le garder à part et le remettre dans `extramodules` (puis `depmod`).
 - Fréquences plus hautes, désactivées par défaut (entrée de démarrage séparée `nano-oc` sur la carte) : GPU en mode NA (nvgpu-nano 0006,
   `nvgpu.gpu_max_khz`), CPU (linux-nano 0112, `clk_tegra124_dfll_fcpu.max_khz` et `nano.cpu_max_khz` pour le limiteur).
   Essais courts (1 à 4 min par palier, calculs comparés un à un, 0 erreur, alimentation à 5,05 V au minimum) :
   GPU 998 MHz (1079 mV) FP32 +7,5 % ; 1075 (1121) +15,8 % ; 1152 (1163) +24,3 %, 3D +13 à +18 %.
   CPU 1555 MHz +5 % ; 1683 (1195 mV) ; 1785 (1227 mV) : stress-ng +21 % et SHA-256 +21 % sur 1479 MHz.
-  CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Aucun essai de plusieurs heures, ni de veille, à ces fréquences.
-- Mode de puissance (jetson-nano-board -10) : `jetson-nano-mode` (état, `list`, `set`, `menu`) et « Mode de puissance » dans le lanceur. Éco 918/537 MHz
+  CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Aucun essai de plusieurs heures.
+  Veille à ces fréquences (2026-11-25) : 8 réveils normaux, calculs justes ; 12 chocs de charge CPU + GPU : 5,064 V au minimum. Une coupure nette
+  (PMIC `NVERC 0x40`, comme une alimentation débranchée) quelques secondes après un 9e réveil, non reproduite, cause inconnue.
+- Mode de puissance (jetson-nano-board -11) : `jetson-nano-mode` (état, `list`, `set`, `menu`) et « Mode de puissance » dans le lanceur. Éco 918/537 MHz
   (ventilateur discret), normal 1479/921, performance 1683/1075, maximum 1785/1152 ; gardé au redémarrage ; sans mot de passe pour l'utilisateur
   devant l'écran (polkit, action limitée à ces quatre modes). Essayé : les 4 modes, menu au clavier, redémarrage. Sur la carte, `nano-oc` est
   l'entrée par défaut et `nano-cuda` (fréquences d'origine) le secours.
