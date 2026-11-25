@@ -150,4 +150,11 @@ Fait :
 - Débit mémoire après une veille (linux-nano 7.2.11-6, 0115) : le micrologiciel remet PLLM à 1305,6 MHz, allumée, et le noyau la laisse ; mémoire
   18 % plus lente pour toujours (GPU 18,6 → 15,4 Go/s, glmark2 530 → 430). Corrigé : 18,64 Go/s après 9 veilles sur 9.
 - Essai long (7.2.11-5, nvgpu -7, 1785 + 1152, 18 cycles, environ 50 min) : CPU + GPU + mémoire + NVMe vérifiés, 3D, veille : 0 erreur ; 13,9 W, 43 °C.
+- Décodage vidéo matériel (2026-11-25, vaapi-tegra -1, nvidia-l4t-gm20b-firmware -2, `fix-video-dtb.sh`) : NVDEC ne répond que si le domaine NVJPG
+  est alimenté ; sans cette dépendance dans le device tree, le premier accès bloque la carte (le pilote refuse alors de décoder). VIC à 408 MHz au
+  lieu de 19,2. H.264 identique au logiciel (baseline, high, 16 références, tranches, entrelacé, 4K), MPEG-2 à 70 dB (arrondi). 1080p avec relecture :
+  116 images/s et 0,6 s de processeur au lieu de 3,9 (180 images) ; 4K : 30 images/s. mpv s'en sert seul (`hwdec=auto-safe` d'Omarchy, vaapi-copy) :
+  1080p30 64 % d'un cœur au lieu de 118 ; 1080p60 91 % au lieu de 208, avec `profile=fast` (sinon 12 images perdues par seconde, aussi en logiciel).
+  Essayé : 3 flux à la fois, flux abîmé, 3 veilles en plein décodage, mémoire stable. Chromium décode toujours avec le processeur (rien de changé).
+  Pas de H.265, VP9, AV1 ni 10 bits. MPEG-2 720 lignes entrelacé (inexistant en pratique) : erreurs.
 - Problèmes connus du projet d'origine, pas revus ici : pas de hot-plug HDMI (à essayer).

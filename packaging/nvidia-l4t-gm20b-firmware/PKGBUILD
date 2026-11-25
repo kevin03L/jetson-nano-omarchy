@@ -1,15 +1,16 @@
 # nvidia-l4t-gm20b-firmware: the GM20B (Tegra210 GPU) firmware set that NVIDIA's nvgpu driver
 # loads (ACR, PMU, FECS/GPCCS, netlist), from NVIDIA's L4T R32.7.6 nvidia-l4t-firmware package
 # for Tegra210, downloaded from NVIDIA at build time (not redistributed in this repository).
+# Also the firmware of the NVDEC video decoder (vaapi-tegra).
 # nouveau uses linux-firmware's nvidia/gm20b set instead; the two sets do not overlap on disk.
 #
 # The deb ships gm20b/ as symlinks into tegra21x/; the kernel firmware loader refuses symlinks
 # for this firmware, so the targets are installed as real files.
 pkgname=nvidia-l4t-gm20b-firmware
 pkgver=32.7.6
-pkgrel=1
+pkgrel=2
 _debver=32.7.6-20241104234540
-pkgdesc="NVIDIA GM20B GPU firmware for the nvgpu driver (Jetson Nano, from L4T R32.7.6)"
+pkgdesc="NVIDIA GM20B GPU firmware for the nvgpu driver, and NVDEC firmware (Jetson Nano, from L4T R32.7.6)"
 arch=(any)
 url="https://developer.nvidia.com/embedded/jetson-linux"
 license=(LicenseRef-NVIDIA-L4T)
@@ -34,6 +35,9 @@ package() {
     # -L: follow the deb's gm20b -> tegra21x symlink and install the file itself
     install -Dm644 "$(readlink -f "deb/lib/firmware/gm20b/$f")" "$pkgdir/usr/lib/firmware/gm20b/$f"
   done
+  # under the name mainline's tegra-drm asks for
+  install -Dm644 deb/lib/firmware/tegra21x/nvhost_nvdec020_ns.fw \
+    "$pkgdir/usr/lib/firmware/nvidia/tegra210/nvdec.bin"
   install -Dm644 deb/usr/share/doc/nvidia-l4t-firmware/copyright \
     "$pkgdir/usr/share/licenses/$pkgname/copyright"
 }

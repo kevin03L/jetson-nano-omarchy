@@ -28,8 +28,8 @@ EXTLINUX=${EXTLINUX:-/boot/extlinux/extlinux.conf}
 REPO_NAME=nano
 
 # Order matters: each package's dependencies come before it.
-ORDER=(nvidia-l4t-gm20b-firmware linux-nano nvidia-l4t-r36 mesa-tegra nvgpu-nano aquamarine-nano
-  hyprland-nano omarchy-nano jetson-nano-board gcc13 cuda-nano nanoblas)
+ORDER=(nvidia-l4t-gm20b-firmware linux-nano nvidia-l4t-r36 mesa-tegra nvgpu-nano vaapi-tegra
+  aquamarine-nano hyprland-nano omarchy-nano jetson-nano-board gcc13 cuda-nano nanoblas)
 
 DRY=0 ONLY="" FROM="" REBUILD=0 BOOT=1
 while (($#)); do
@@ -174,6 +174,7 @@ if ((BOOT)); then
   [[ -f $live ]] || die "no $live (the card builder copies the board's device tree there)"
   pacman -S --needed --noconfirm dtc
   bash "$here/images/mainline-kernel/make-nano-dtb.sh" "$live" "$nano_dtb"
+  bash "$here/images/mainline-kernel/fix-video-dtb.sh" "$nano_dtb"
   [[ -f $EXTLINUX.pre-nano ]] || cp -p "$EXTLINUX" "$EXTLINUX.pre-nano"
   add_nano_entries "$EXTLINUX" "${nano_dtb#/boot/}" "$src_label"
   say "boot entries:"; grep -E '^(DEFAULT|LABEL)' "$EXTLINUX"
