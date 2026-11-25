@@ -8,7 +8,7 @@
 # guard (enabled separately) falls back to a safe boot entry after a boot that does not come up.
 pkgname=jetson-nano-board
 pkgver=1
-pkgrel=11
+pkgrel=14
 pkgdesc="Jetson Nano board policy: GPU clock floor, fan trip point, memory clock raise, memory pressure policy, micro-USB host link"
 arch=(any)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
@@ -21,7 +21,8 @@ source=(80-jetson-nano-board.rules fan-trip emc-raise jetson-nano-emc.service 10
         10-jetson-nano-watchdog.conf jetson-nano-watchdog.modules 10-jetson-nano-hung-task.sysctl boot-guard jetson-nano-boot-guard.service jetson-nano-boot-ok.service
         power-limit jetson-nano-power.service power.conf.example jetson-nano-mglru.tmpfiles
         fan-curve jetson-nano-fan-curve.service fan.conf.example
-        jetson-nano-mode modes mode-set org.jetsonnano.mode.policy jetson-nano-mode.desktop)
+        jetson-nano-mode modes mode-set org.jetsonnano.mode.policy jetson-nano-mode.desktop
+        keep-kernel 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook jetson-nano-usb-gadget-down.service)
 sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             '00068e7414f8b4d7d4d1c07264ae28ca6b32cabd8bca7fdfed7f8f870fa071d6'
             '3b69ebae7f91d753c92818d87276df70558e7ce416b1ef47a807854375c641f0'
@@ -47,11 +48,15 @@ sha256sums=('c637064f784ee073a0ef4f63c232b6fb06557acaaae29c95a67a9af587a49172'
             'ff5acba092590c51f1f8e243c8e828b498f21ec27cf6797ce9bc2c005ceb0299'
             'f65b03902d3047d4e271d4bad17841fd50947f0495d60f5a9210b8be728428c1'
             '5fd1a5ce581a92c089e191eaa8a77f7709e3bb1d4dd6edeb958af415adc80df7'
-            'ebf6abdfa96c1a82ab07f23be83d0636287afdb0bbbde08ace44f58822f43c8a'
+            'b73ffad83380b78f3ccab019956f358254f60bc1c49144557b95318564f9b0c1'
             'f3e65e5229f8db1323cf6430034c8c02d5ef8e72dc5c9201055c4257d518ab33'
             'b909c3c9b22c667aa56ced08f4a156b3160d22332bd7250a0b11aab9083908f4'
             'c31f8152c5259a4176b8f0278463a3c3d44fd6b08b3fa430b14b453a8b4f239a'
-            'be83a55690e2482cf5a2ec09438a32e17da63e20264c8fe58ff8dcec08880990')
+            'be83a55690e2482cf5a2ec09438a32e17da63e20264c8fe58ff8dcec08880990'
+            'cbcc422081a2b89dc3a768d471683ca94317ed75f576bc500188bf3bf97193cd'
+            'e204e6c291126eedcac2f3800eb07e49db084ce35bd60a52a7a2e32d1f54cb69'
+            'e73d787cbcc5ab17996319ab8164edd15d44fc91a6d1cc2003b83b6596e8e9ea'
+            '0040dd4a8dafd7693c81cd5eef837dfa1852d538600e7ea6e0333c6a1a7b9429')
 
 package() {
   install -Dm644 80-jetson-nano-board.rules "$pkgdir/usr/lib/udev/rules.d/80-jetson-nano-board.rules"
@@ -88,6 +93,9 @@ package() {
   install -Dm755 mode-set "$pkgdir/usr/lib/jetson-nano/mode-set"
   install -Dm644 org.jetsonnano.mode.policy "$pkgdir/usr/share/polkit-1/actions/org.jetsonnano.mode.policy"
   install -Dm644 jetson-nano-mode.desktop "$pkgdir/usr/share/applications/jetson-nano-mode.desktop"
+  install -Dm755 keep-kernel "$pkgdir/usr/lib/jetson-nano/keep-kernel"
+  install -Dm644 -t "$pkgdir/usr/share/libalpm/hooks" 10-jetson-nano-keep-kernel.hook 90-jetson-nano-keep-kernel.hook
+  install -Dm644 jetson-nano-usb-gadget-down.service "$pkgdir/usr/lib/systemd/system/jetson-nano-usb-gadget-down.service"
   install -Dm755 fan-curve "$pkgdir/usr/lib/jetson-nano/fan-curve"
   install -Dm644 jetson-nano-fan-curve.service "$pkgdir/usr/lib/systemd/system/jetson-nano-fan-curve.service"
   install -Dm644 fan.conf.example "$pkgdir/usr/share/jetson-nano/fan.conf.example"

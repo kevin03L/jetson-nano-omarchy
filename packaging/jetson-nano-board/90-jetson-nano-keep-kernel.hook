@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Upgrade
+Target = linux-nano
+Target = nvgpu-nano
+
+[Action]
+Description = Keeping the previous kernel as boot entry nano-prev...
+When = PostTransaction
+Exec = /usr/lib/jetson-nano/keep-kernel post

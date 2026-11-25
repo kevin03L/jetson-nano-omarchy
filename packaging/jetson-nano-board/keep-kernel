@@ -1,0 +1,74 @@
+#!/bin/bash
+# jetson-nano-board: keep the kernel that is running, with its GPU modules, as the boot entry
+# nano-prev when pacman replaces linux-nano or nvgpu-nano (hooks 10- and 90-jetson-nano-keep-kernel).
+#   keep-kernel pre    before the transaction: hard links of the modules, copies of the boot files
+#   keep-kernel post   after it: put back what the transaction removed, add the boot entry
+# Only a running linux-nano kernel is kept: it has just proved that it boots. ROOT= is for tests.
+# No package owns the kept modules: to install that version again, pacman -U --overwrite '/usr/lib/modules/*'.
+set -u
+ROOT=${ROOT:-}
+KVER=${KVER:-$(uname -r)}
+MODS=$ROOT/usr/lib/modules
+SAVE=$ROOT/var/lib/jetson-nano/prev
+BOOT=$ROOT/boot
+EXT=$BOOT/extlinux/extlinux.conf
+PREV=$BOOT/nano-prev
+say() { echo "keep-kernel: $*"; }
+field() { awk -v l="$1" -v k="$2" '$1 == "LABEL" { p = ($2 == l) } p && $1 == k { sub(/^[[:space:]]*[A-Z]+[[:space:]]+/, ""); print; exit }' "$EXT"; }
+
+pre() {
+  local pkg fdt
+  case $KVER in *-nano-ARCH) ;; *) say "running $KVER, not linux-nano: nothing to keep"; return 0 ;; esac
+  [ -d "$MODS/$KVER/kernel" ] || { say "no modules for $KVER: nothing to keep"; return 0; }
+  pkg=$(pacman -Q linux-nano 2>/dev/null | cut -d' ' -f2)
+  [ "${PKGVER:-$pkg}-nano-ARCH" = "$KVER" ] || { say "linux-nano ${PKGVER:-$pkg} is not the running kernel ($KVER): the boot files may not match, nothing kept"; return 0; }
+  rm -rf "$SAVE.new"
+  mkdir -p "$SAVE.new"
+  # hard links: no space, and pacman replaces files by new ones
+  cp -al "$MODS/$KVER" "$SAVE.new/modules" || { rm -rf "$SAVE.new"; say "modules not saved"; return 0; }
+  rm -rf "$SAVE.new/modules/build"
+  echo "$KVER" > "$SAVE.new/kver"
+  fdt=$(field nano-cuda FDT)
+  cp -p "$BOOT/Image-nano" "$SAVE.new/Image" && cp -p "$BOOT/initramfs-linux-nano.img" "$SAVE.new/initramfs.img" &&
+    cp -p "$ROOT${fdt:-/nonexistent}" "$SAVE.new/board.dtb" || { rm -rf "$SAVE.new"; say "boot files not saved"; return 0; }
+  rm -rf "$SAVE"
+  mv "$SAVE.new" "$SAVE"
+  say "$KVER saved"
+}
+
+post() {
+  local k d append cur
+  cur=${PKGVER:-$(pacman -Q linux-nano 2>/dev/null | cut -d' ' -f2)}-nano-ARCH
+  # never an old kernel (it may have been one, after a downgrade and an upgrade)
+  rm -f "$MODS/$cur/.jetson-nano-prev"
+  [ -r "$SAVE/kver" ] || return 0
+  k=$(cat "$SAVE/kver")
+  if [ "$cur" = "$k" ]; then
+    # same kernel (a reinstallation, or a new nvgpu-nano for it): no older kernel to keep
+    say "linux-nano is still $k: nano-prev unchanged"
+    return 0
+  fi
+  # the modules of the kernel kept the time before, which only this script owns
+  for d in "$MODS"/*/; do
+    [ -e "$d/.jetson-nano-prev" ] || continue
+    d=${d%/}
+    case ${d##*/} in "$k"|"$KVER"|"$cur") ;; *) rm -rf "$d" ;; esac
+  done
+  mkdir -p "$MODS/$k"
+  cp -al --update=none "$SAVE/modules/." "$MODS/$k/"
+  touch "$MODS/$k/.jetson-nano-prev"
+  ${DEPMOD:-depmod} "$k"
+  mkdir -p "$PREV"
+  for d in Image initramfs.img board.dtb; do
+    cp -p "$SAVE/$d" "$PREV/$d.new" && cmp -s "$SAVE/$d" "$PREV/$d.new" && mv -f "$PREV/$d.new" "$PREV/$d" ||
+      { rm -f "$PREV/$d.new"; say "ERROR $PREV/$d not written: do not rely on nano-prev"; return 1; }
+  done
+  sync
+  append=$(field nano-cuda APPEND)
+  if ! grep -q '^LABEL nano-prev$' "$EXT" && [ -n "$append" ]; then
+    printf '\nLABEL nano-prev\n      MENU LABEL linux-nano: the previous kernel (rollback)\n      LINUX /boot/nano-prev/Image\n      INITRD /boot/nano-prev/initramfs.img\n      FDT /boot/nano-prev/board.dtb\n      APPEND %s\n' "$append" >> "$EXT"
+  fi
+  say "boot entry nano-prev: $k, modules $([ -e "$MODS/$k/extramodules/nvgpu.ko" ] && echo 'with' || echo 'WITHOUT') the GPU driver"
+}
+
+case ${1:-} in pre) pre ;; post) post ;; *) echo "keep-kernel pre|post" >&2; exit 2 ;; esac
