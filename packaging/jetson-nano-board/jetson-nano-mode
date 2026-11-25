@@ -21,7 +21,9 @@ name_of() {
     max) tr_ Maximum Maximum ;;
   esac
 }
-mhz() { echo "CPU $(( $(mode_cpu_khz "$1") / 1000 )) MHz, GPU $(( $(mode_gpu_hz "$1") / 1000000 )) MHz"; }
+mhz() {
+  echo "CPU $(( $(mode_cpu_khz "$1") / 1000 )) MHz$(gpu_present && echo ", GPU $(( $(mode_gpu_hz "$1") / 1000000 )) MHz")"
+}
 
 available() { local m; for m in $MODES; do mode_available "$m" && echo "$m"; done; }
 
@@ -40,12 +42,16 @@ apply() {
 status() {
   local m z h v c t=0 g=0 p=
   m=$(current)
-  echo "$(tr_ Mode Mode) : $(name_of "$m") ($(mhz "$m"))"
+  [ -n "$m" ] && echo "$(tr_ Mode Mode) : $(name_of "$m") ($(mhz "$m"))"
   for z in /sys/class/thermal/thermal_zone*; do
     case $(cat "$z/type") in cpu-thermal) t=$(cat "$z/temp") ;; gpu-thermal) g=$(cat "$z/temp") ;; esac
   done
   echo "CPU : $(( $(cat "$CPUFREQ/scaling_cur_freq") / 1000 )) / $(( $(cat "$CPUFREQ/scaling_max_freq") / 1000 )) MHz, $((t / 1000)) °C"
-  echo "GPU : $(( $(cat "$DEVFREQ/cur_freq") / 1000000 )) / $(( $(cat "$DEVFREQ/max_freq") / 1000000 )) MHz, $((g / 1000)) °C"
+  if gpu_present; then
+    echo "GPU : $(( $(cat "$DEVFREQ/cur_freq") / 1000000 )) / $(( $(cat "$DEVFREQ/max_freq") / 1000000 )) MHz, $((g / 1000)) °C"
+  else
+    echo "GPU : $(tr_ 'no clock control in this boot entry' 'fréquence non réglable dans cette entrée de démarrage'), $((g / 1000)) °C"
+  fi
   for h in /sys/class/hwmon/hwmon*; do
     case $(cat "$h/name") in
       ina3221) v=$(cat "$h/in1_input"); c=$(cat "$h/curr1_input")

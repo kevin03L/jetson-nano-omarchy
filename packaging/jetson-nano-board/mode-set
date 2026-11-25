@@ -17,7 +17,7 @@ if systemctl -q is-active jetson-nano-fan-curve.service; then systemctl restart 
 # wait until the limiter has applied the caps
 for _ in $(seq 30); do
   if [ "$(cat "$CPUFREQ/scaling_max_freq")" = "$(mode_cpu_khz "$1")" ] &&
-     [ "$(cat "$DEVFREQ/max_freq")" = "$(mode_gpu_hz "$1")" ]; then
+     { ! gpu_present || [ "$(cat "$DEVFREQ/max_freq")" = "$(mode_gpu_hz "$1")" ]; }; then
     exit 0
   fi
   sleep 0.1
