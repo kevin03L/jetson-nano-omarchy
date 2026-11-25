@@ -9,7 +9,7 @@ DEVFREQ=${DEVFREQ:-/sys/class/devfreq/57000000.gpu}
 mode_known() { case " $MODES " in *" $1 "*) return 0 ;; esac; return 1; }
 mode_cpu_khz() { case $1 in eco) echo 918000 ;; normal) echo 1479000 ;; perf) echo 1683000 ;; max) echo 1785000 ;; esac; }
 mode_gpu_hz() { case $1 in eco) echo 537600000 ;; normal) echo 921600000 ;; perf) echo 1075200000 ;; max) echo 1152000000 ;; esac; }
-# nouveau (or no GPU driver) has no devfreq: the mode then only sets the CPU
+# without a GPU driver there is no devfreq: the mode then only sets the CPU
 gpu_present() { [ -r "$DEVFREQ/available_frequencies" ]; }
 mode_available() {
   mode_known "$1" &&

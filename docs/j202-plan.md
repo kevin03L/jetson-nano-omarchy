@@ -128,4 +128,11 @@ Fait :
   (ventilateur discret), normal 1479/921, performance 1683/1075, maximum 1785/1152 ; gardé au redémarrage ; sans mot de passe pour l'utilisateur
   devant l'écran (polkit, action limitée à ces quatre modes). Essayé : les 4 modes, menu au clavier, redémarrage. Sur la carte, `nano-oc` est
   l'entrée par défaut et `nano-cuda` (fréquences d'origine) le secours.
+- Écran de démarrage (2026-11-25). Premier logo : cboot l'affiche depuis la partition eMMC `BMP` (192 Kio, blob LZ4 `NVIDIA__BLOB__V2`) ;
+  `omarchy/nano/bootlogo.py` remplace les pixels (build, install avec sauvegarde dans /root et relecture, restore). U-Boot n'écrit que sur la série.
+  Chargement : Plymouth, thème `jetson-nano` (image du logo, Omarchy, barre), `tegra-drm` dans l'initramfs (écran à 5 s au lieu de 12 s), crochet
+  `nano-slim` (sans hwdb ni X11 : 12,1 Mo, limite 14,7). Entrée `nano-oc` : `console=tty0` retiré, `splash plymouth.ignore-serial-consoles
+  vt.global_cursor_default=0 logo.nologo` ; le noyau reste bavard sur la série. Les autres entrées gardent le texte (dépannage).
+  Images à fournir dans /usr/share/plymouth/themes/jetson-nano (hors dépôt) : splash.png (1100x350), omarchy.png (400x94), bar-empty.png, bar-full.png (1x1) ;
+  puis `plymouth-set-default-theme jetson-nano` et `mkinitcpio -p linux-nano`. Essayé : `nano-oc`, `nano-cuda`, `nano` (nouveau).
 - Problèmes connus du projet d'origine : un reset parasite sur environ un redémarrage à chaud sur trois, pas de hot-plug HDMI, l'extinction ne coupe pas l'alimentation.

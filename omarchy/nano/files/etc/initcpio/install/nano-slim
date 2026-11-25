@@ -1,0 +1,7 @@
+#!/bin/bash
+# The early boot needs neither the hardware database (14 MB) nor the X11 keyboard and locale
+# files that the plymouth hook brings: the initramfs must stay under 14 MiB for L4T U-Boot.
+build() {
+  rm -rf "$BUILDROOT/usr/lib/udev/hwdb.bin" "$BUILDROOT/usr/share/X11"
+}
+help() { echo "Drop what the Jetson Nano does not need in the initramfs. Keep it last."; }

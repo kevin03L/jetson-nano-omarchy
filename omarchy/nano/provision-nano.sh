@@ -87,6 +87,8 @@ stage_2() {
 stage_3() {
   local extlinux=/boot/extlinux/extlinux.conf
   printf 'stage 3: boot: initramfs, guard, extlinux\n'
+  install_file etc/initcpio/install/nano-slim 0644
+  install_file etc/systemd/system/plymouth-quit.service.d/retain.conf 0644
   install_file etc/mkinitcpio.conf.d/zz-jetson-nano.conf 0644
   install_file usr/local/bin/jetson-nano-boot-check 0755
   install_file etc/pacman.d/hooks/95-jetson-nano-boot-check.hook 0644

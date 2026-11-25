@@ -1,0 +1,10 @@
+[Plymouth Theme]
+Name=Jetson Nano
+Description=The picture of the first boot screen with a progress bar.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/jetson-nano
+ScriptFile=/usr/share/plymouth/themes/jetson-nano/jetson-nano.script
+Font=Cantarell 11
+MonospaceFont=Cantarell 11

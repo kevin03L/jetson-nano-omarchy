@@ -1,0 +1,58 @@
+# splash.png is centred, 25 pixels above the middle, as on the first boot screen (bootlogo.py).
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+BOOT_SECONDS = 9;       # from the splash to the login screen
+BAR_WIDTH = 400;
+BAR_HEIGHT = 6;
+
+logo = Sprite(Image("splash.png"));
+omarchy = Sprite(Image("omarchy.png"));     # as wide as the bar, just above it
+bar.empty = Image("bar-empty.png").Scale(BAR_WIDTH, BAR_HEIGHT);
+bar.full = Image("bar-full.png");
+bar.back = Sprite(bar.empty);
+bar.front = Sprite();
+bar.drawn = 0;
+
+fun layout() {
+  global.width = Window.GetWidth();
+  global.height = Window.GetHeight();
+  image = logo.GetImage();
+  logo.SetPosition(Math.Int(width / 2 - image.GetWidth() / 2), Math.Int(height / 2 - 25 - image.GetHeight() / 2), 0);
+  x = Math.Int(width / 2 - BAR_WIDTH / 2);
+  y = Math.Int(height / 2) + 335;
+  omarchy.SetPosition(x, y - 110, 1);
+  bar.back.SetPosition(x, y, 1);
+  bar.front.SetPosition(x, y, 2);
+}
+
+fun draw(part) {
+  if (part > 1) part = 1;
+  w = Math.Int(BAR_WIDTH * part);
+  if (w <= bar.drawn) return;
+  bar.drawn = w;
+  bar.front.SetImage(bar.full.Scale(w, BAR_HEIGHT));
+}
+
+layout();
+if (Plymouth.GetMode() != "boot") bar.back.SetOpacity(0);
+
+fun refresh_callback() {
+  if (Window.GetWidth() != global.width || Window.GetHeight() != global.height) layout();
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun progress_callback(seconds, progress) {
+  if (Plymouth.GetMode() == "boot") draw(seconds / BOOT_SECONDS * 0.96);
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+fun quit_callback() {
+  if (Plymouth.GetMode() == "boot") draw(1);
+}
+Plymouth.SetQuitFunction(quit_callback);
+
+message = Sprite();
+message.SetPosition(10, 10, 10);
+fun message_callback(text) { message.SetImage(Image.Text(text, 0.6, 0.6, 0.6)); }
+Plymouth.SetMessageFunction(message_callback);
