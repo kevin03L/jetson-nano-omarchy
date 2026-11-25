@@ -45,8 +45,8 @@ Tested on one board, release `j202-v1.0` (November 2026).
 Measured in Maximum: 13.9 W and 42 °C peak (fan running), 2.8 W idle. CPU and GPU results checked, 0 errors.
 
 > [!WARNING]
-> Performance and Maximum go beyond the clocks NVIDIA guarantees. They only passed tests of a few minutes per
-> step, on one chip. They stay off unless the boot entry asks for them.
+> Performance and Maximum go beyond the clocks NVIDIA guarantees. They passed short tests per step and one
+> 2 hour CPU + GPU + memory load at Maximum without an error, on one chip. They stay off unless the boot entry asks for them.
 
 ## What you need
 
@@ -127,7 +127,7 @@ Details and measurements: [docs/j202-plan.md](docs/j202-plan.md) (French).
 
 ## Known issues
 
-- No test of several hours at the Performance and Maximum clocks.
+- Performance and Maximum: 2 hours of checked CPU, GPU and memory load at Maximum (14.4 W, 44 °C, 0 errors), nothing longer; 3D not included.
 - Wake from suspend by keyboard or button: not tested.
 - No HDMI hot-plug; connect the monitor before booting.
 - After a power off, the board starts again with the 12 V supply (unplug and plug) or an RTC alarm; the power button header is not tested.

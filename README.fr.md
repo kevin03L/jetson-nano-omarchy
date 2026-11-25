@@ -46,8 +46,8 @@ Mesuré en mode Maximum : 13,9 W et 42 °C au pic (ventilateur actif), 2,8 W au 
 vérifiés, 0 erreur.
 
 > [!WARNING]
-> Performance et Maximum dépassent les fréquences garanties par NVIDIA. Ils n'ont passé que des essais de
-> quelques minutes par palier, sur une seule puce. Ils sont désactivés tant que l'entrée de démarrage ne les demande pas.
+> Performance et Maximum dépassent les fréquences garanties par NVIDIA. Ils ont passé des essais courts par
+> palier et 2 h de charge CPU + GPU + mémoire au Maximum sans erreur, sur une seule puce. Ils sont désactivés tant que l'entrée de démarrage ne les demande pas.
 
 ## Matériel
 
@@ -128,7 +128,7 @@ Le détail, avec les mesures, est dans [docs/j202-plan.md](docs/j202-plan.md).
 
 ## Limites connues
 
-- Aucun essai de plusieurs heures aux fréquences Performance et Maximum.
+- Performance et Maximum : 2 h de charge contrôlée (CPU, GPU, mémoire) au Maximum (14,4 W, 44 °C, 0 erreur), rien de plus long ; 3D non comprise.
 - Réveil de veille au clavier ou au bouton : pas essayé.
 - Pas de branchement HDMI à chaud ; brancher l'écran avant le démarrage.
 - Après une extinction, la carte repart en rebranchant le 12 V ou par une alarme de l'horloge ; le bouton d'alimentation n'est pas essayé.

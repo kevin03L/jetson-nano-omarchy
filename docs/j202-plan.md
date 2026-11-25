@@ -122,7 +122,9 @@ Fait :
   Essais courts (1 à 4 min par palier, calculs comparés un à un, 0 erreur, alimentation à 5,05 V au minimum) :
   GPU 998 MHz (1079 mV) FP32 +7,5 % ; 1075 (1121) +15,8 % ; 1152 (1163) +24,3 %, 3D +13 à +18 %.
   CPU 1555 MHz +5 % ; 1683 (1195 mV) ; 1785 (1227 mV) : stress-ng +21 % et SHA-256 +21 % sur 1479 MHz.
-  CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Aucun essai de plusieurs heures.
+  CPU 1785 + GPU 1152 : 13,9 W et 42 °C au pic. Stabilité (2026-11-25, 7.2.11-5 et nvgpu -7) :
+  2 h de CPU + GPU + 700 Mo de mémoire vérifiée à 1785 + 1152 : 343 tours GPU, 407 tours CPU, 34 `gemm_test`, 0 faux, 0 erreur ; 14,4 W, 44 °C,
+  5,040 V au minimum, limiteur jamais actif, 216 à 228 GFLOPS.
   Veille à ces fréquences (2026-11-25) : 9 réveils normaux, calculs justes ; 12 chocs de charge CPU + GPU : 5,064 V au minimum.
 - Mode de puissance (jetson-nano-board -11) : `jetson-nano-mode` (état, `list`, `set`, `menu`) et « Mode de puissance » dans le lanceur. Éco 918/537 MHz
   (ventilateur discret), normal 1479/921, performance 1683/1075, maximum 1785/1152 ; gardé au redémarrage ; sans mot de passe pour l'utilisateur
