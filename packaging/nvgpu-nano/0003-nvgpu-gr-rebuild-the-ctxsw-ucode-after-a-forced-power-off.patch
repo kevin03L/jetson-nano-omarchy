@@ -14,7 +14,7 @@ Make it there when it is missing, and free it with the gr falcon instead of leak
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
 diff --git a/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c b/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
-index a08c8db..4cb54db 100644
+index a08c8dbea..4cb54db5a 100644
 --- a/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
 +++ b/drivers/gpu/nvgpu/common/acr/acr_blob_construct_v0.c
 @@ -740,8 +740,12 @@ int nvgpu_acr_prepare_ucode_blob_v0(struct gk20a *g)
@@ -33,7 +33,7 @@ index a08c8db..4cb54db 100644
  	plsfm = &lsfm_l;
  	(void) memset((void *)plsfm, 0, sizeof(struct ls_flcn_mgr_v0));
 diff --git a/drivers/gpu/nvgpu/common/gr/gr_falcon.c b/drivers/gpu/nvgpu/common/gr/gr_falcon.c
-index 7ecb578..c715b1e 100644
+index 7ecb57827..39a36d064 100644
 --- a/drivers/gpu/nvgpu/common/gr/gr_falcon.c
 +++ b/drivers/gpu/nvgpu/common/gr/gr_falcon.c
 @@ -78,6 +78,11 @@ void nvgpu_gr_falcon_remove_support(struct gk20a *g,
@@ -48,11 +48,20 @@ index 7ecb578..c715b1e 100644
  	nvgpu_kfree(g, falcon);
  }
  
-@@ -311,6 +316,11 @@ int nvgpu_gr_falcon_init_ctxsw_ucode(struct gk20a *g,
+@@ -239,6 +244,7 @@ static int nvgpu_gr_falcon_init_ctxsw_ucode_vaspace(struct gk20a *g,
+ 					ucode_info->surface_desc.aperture);
+ 	if (ucode_info->surface_desc.gpu_va == 0ULL) {
+ 		nvgpu_err(g, "failed to update gmmu ptes");
++		nvgpu_free_inst_block(g, &ucode_info->inst_blk_desc);
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -311,6 +317,12 @@ int nvgpu_gr_falcon_init_ctxsw_ucode(struct gk20a *g,
  	const char *fw_name = NULL;
  	int err = 0;
  
-+	if (nvgpu_mem_is_valid(&ucode_info->inst_blk_desc)) {
++	if (nvgpu_mem_is_valid(&ucode_info->inst_blk_desc) &&
++	    (ucode_info->surface_desc.gpu_va != 0ULL)) {
 +		/* kept across a normal power-off */
 +		return 0;
 +	}

@@ -155,10 +155,7 @@ add_repo
 pacman -Sy
 
 # only once the whole GPU userspace is there (--only and --from can stop short of it)
-if pacman -Q nvgpu-nano nvidia-l4t-r36 mesa >/dev/null 2>&1; then
-  bash "$here/omarchy/nano/nvgpu-desktop.sh"
-  say "desktop: rendering on the GPU"
-fi
+REPO_NAME=$REPO_NAME bash "$here/omarchy/nano/nvgpu-desktop.sh" --if-ready
 
 if ((BOOT)); then
   # shellcheck source=../omarchy/nano/lib-extlinux.sh

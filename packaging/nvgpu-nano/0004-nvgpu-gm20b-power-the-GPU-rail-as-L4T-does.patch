@@ -17,6 +17,10 @@ Measured on a reComputer J1020 v2 with power cycles through /dev/nvgpu/igpu0/pow
 busy: before, the board hung within a few hundred cycles; with all of it, 3000 cycles with the rail
 off for 5 ms, no failure (five "pmu exterr" messages, GPU fine).
 
+A flush that does not end: the GPU goes in reset and the flush is tried again; if it still does
+not end, the rail and the clocks stay on with the GPU in reset, and the next power-up runs the
+whole sequence. (Leaving the GPU running instead does not work: it only starts after a reset.)
+
 Also release the static powergate lock when an early power-on step fails: railgating the GPU then
 waited for it for ever.
 
@@ -26,7 +30,7 @@ linux-nano's 0106.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
 diff --git a/drivers/gpu/nvgpu/common/init/nvgpu_init.c b/drivers/gpu/nvgpu/common/init/nvgpu_init.c
-index 5f2435c..b99827d 100644
+index 5f2435c7c..b99827deb 100644
 --- a/drivers/gpu/nvgpu/common/init/nvgpu_init.c
 +++ b/drivers/gpu/nvgpu/common/init/nvgpu_init.c
 @@ -864,6 +864,12 @@ static int nvgpu_early_init(struct gk20a *g)
@@ -43,10 +47,10 @@ index 5f2435c..b99827d 100644
  }
  
 diff --git a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
-index fca3f9d..4de6b68 100644
+index fca3f9d52..cfd0f658f 100644
 --- a/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
 +++ b/drivers/gpu/nvgpu/os/linux/platform_gk20a_tegra.c
-@@ -87,7 +87,11 @@ struct gm20b_mainline_power {
+@@ -87,9 +87,15 @@ struct gm20b_mainline_power {
  	struct clk *gpu;
  	struct clk *ref;
  	struct clk *pwr;
@@ -57,8 +61,12 @@ index fca3f9d..4de6b68 100644
 +	struct reset_control *mc_rst;
  	struct tegra_pmc *pmc;
  	bool on;
++	/* off, but with the rail and the clocks left on: in reset */
++	bool rail_kept;
  
-@@ -777,6 +781,26 @@ static int gm20b_tegra_railgate(struct device *dev)
+ 	/* GPCPLL clock registered by gm20b_register_gpcclk() */
+ 	struct clk *gpcclk;
+@@ -777,6 +783,42 @@ static int gm20b_tegra_railgate(struct device *dev)
  	if (!power->on)
  		return 0;
  
@@ -70,8 +78,24 @@ index fca3f9d..4de6b68 100644
 +	 * power-up, a GPU that does not start, or a hung memory system.
 +	 */
 +	ret = reset_control_assert(power->mc_rst);
-+	if (ret)
++	if (ret) {
++		/*
++		 * Accesses still in flight. In reset the GPU makes no new ones:
++		 * flush again. The GPU cannot stay out of reset here, only a
++		 * reset makes it start again.
++		 */
 +		nvgpu_warn(g, "failed to flush gpu memory accesses: %d", ret);
++		(void) reset_control_assert(power->rst);
++		udelay(10);
++		(void) reset_control_deassert(power->mc_rst);
++		ret = reset_control_assert(power->mc_rst);
++	}
++	if (ret) {
++		nvgpu_err(g, "gpu memory accesses not flushed (%d): rail left on", ret);
++		power->rail_kept = true;
++		power->on = false;
++		return 0;
++	}
 +	udelay(10);
 +	ret = tegra_pmc_powergate_gpu_clamp(power->pmc);
 +	if (ret)
@@ -85,7 +109,19 @@ index fca3f9d..4de6b68 100644
  	clk_disable_unprepare(power->pwr);
  	clk_disable_unprepare(power->ref);
  	clk_disable_unprepare(power->gpu);
-@@ -819,6 +843,11 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+@@ -799,6 +841,11 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+ 	if (power->on)
+ 		return 0;
+ 
++	if (power->rail_kept) {
++		power->rail_kept = false;
++		goto powered;
++	}
++
+ 	ret = regulator_enable(power->vdd);
+ 	if (ret) {
+ 		nvgpu_err(g, "failed to enable vdd regulator: %d", ret);
+@@ -819,9 +866,15 @@ static int gm20b_tegra_unrailgate(struct device *dev)
  		nvgpu_err(g, "failed to enable pwr clock: %d", ret);
  		goto err_clk_pwr;
  	}
@@ -97,7 +133,11 @@ index fca3f9d..4de6b68 100644
  	ret = clk_set_rate(power->pwr, 204000000);
  	if (ret)
  		nvgpu_warn(g, "pwr clock not set to 204 MHz: %d", ret);
-@@ -841,6 +870,20 @@ static int gm20b_tegra_unrailgate(struct device *dev)
++powered:
+ 	udelay(10);
+ 	ret = reset_control_assert(power->rst);
+ 	if (ret) {
+@@ -841,13 +894,37 @@ static int gm20b_tegra_unrailgate(struct device *dev)
  		nvgpu_err(g, "failed to deassert gpu reset: %d", ret);
  		goto err_reset_deassert;
  	}
@@ -107,8 +147,10 @@ index fca3f9d..4de6b68 100644
 +	 */
 +	udelay(10);
 +	ret = reset_control_assert(power->mc_rst);
-+	if (ret)
-+		nvgpu_warn(g, "failed to flush gpu memory accesses: %d", ret);
++	if (ret) {
++		nvgpu_err(g, "failed to flush gpu memory accesses: %d", ret);
++		goto err_reset_deassert;
++	}
 +	udelay(10);
 +	ret = reset_control_deassert(power->mc_rst);
 +	if (ret) {
@@ -118,8 +160,14 @@ index fca3f9d..4de6b68 100644
  	udelay(10);
  	power->on = true;
  	return 0;
-@@ -848,6 +891,8 @@ static int gm20b_tegra_unrailgate(struct device *dev)
+ 
  err_reset_deassert:
++	/* as after a railgate: memory path blocked, clamped, in reset */
++	(void) reset_control_assert(power->mc_rst);
++	(void) tegra_pmc_powergate_gpu_clamp(power->pmc);
++	udelay(10);
++	(void) reset_control_assert(power->rst);
++	udelay(10);
  err_clamp:
  err_reset_assert:
 +	clk_disable_unprepare(power->fuse);
@@ -127,7 +175,7 @@ index fca3f9d..4de6b68 100644
  	clk_disable_unprepare(power->pwr);
  err_clk_pwr:
  	clk_disable_unprepare(power->ref);
-@@ -1334,6 +1379,12 @@ static int gk20a_tegra_probe(struct device *dev)
+@@ -1334,6 +1411,12 @@ static int gk20a_tegra_probe(struct device *dev)
  		nvgpu_err(g, "failed to get pwr clock: %d", ret);
  		return ret;
  	}
@@ -140,7 +188,7 @@ index fca3f9d..4de6b68 100644
  	power->rst = devm_reset_control_get(dev, "gpu");
  	if (IS_ERR(power->rst)) {
  		ret = PTR_ERR(power->rst);
-@@ -1341,6 +1392,14 @@ static int gk20a_tegra_probe(struct device *dev)
+@@ -1341,6 +1424,14 @@ static int gk20a_tegra_probe(struct device *dev)
  		return ret;
  	}
  #ifdef CONFIG_RESET_CONTROLLER

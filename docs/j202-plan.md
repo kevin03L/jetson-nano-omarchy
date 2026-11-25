@@ -128,6 +128,10 @@ Fait :
   (ventilateur discret), normal 1479/921, performance 1683/1075, maximum 1785/1152 ; gardé au redémarrage ; sans mot de passe pour l'utilisateur
   devant l'écran (polkit, action limitée à ces quatre modes). Essayé : les 4 modes, menu au clavier, redémarrage. Sur la carte, `nano-oc` est
   l'entrée par défaut et `nano-cuda` (fréquences d'origine) le secours.
+- nvgpu-nano -7 (2026-11-25, relecture des PR du projet d'origine) : microcode refait si sa projection mémoire a échoué (0003) ; vidage des
+  accès mémoire raté (0004) : GPU remis à zéro, nouvel essai, sinon rail gardé avec le GPU en reset. Refuser la coupure ne marche pas : le GPU
+  arrêté ne repart qu'après un reset. Pannes simulées (module d'essai, non publié) : vidage raté 1 et 2 fois, 11 mises sous tension ratées, veille
+  avec vidage raté : GPU revenu à chaque fois, calculs justes. 600 cycles d'alimentation sous charge CPU : 0 échec (version précédente de -7).
 - Écran de démarrage (2026-11-25). Premier logo : cboot l'affiche depuis la partition eMMC `BMP` (192 Kio, blob LZ4 `NVIDIA__BLOB__V2`) ;
   `omarchy/nano/bootlogo.py` remplace les pixels (build, install avec sauvegarde dans /root et relecture, restore). U-Boot n'écrit que sur la série.
   Chargement : Plymouth, thème `jetson-nano` (image du logo, Omarchy, barre), `tegra-drm` dans l'initramfs (écran à 5 s au lieu de 12 s), crochet

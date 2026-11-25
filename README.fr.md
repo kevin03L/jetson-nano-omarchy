@@ -21,7 +21,7 @@ Essayé sur une seule carte, version `j202-v1.0` (novembre 2026).
 |---|---|
 | Bureau Omarchy 4.5 (Hyprland, SDDM) | fonctionne, rendu par le GPU (Mesa Zink sur le Vulkan 1.3 de NVIDIA) |
 | Noyau `linux-nano` 7.2.11-5 | 14 correctifs Tegra210 ; racine sur SSD NVMe, `/boot` sur l'eMMC |
-| `nvgpu-nano` 36.4.20261121-6 | chargé au démarrage ; 76,8 à 921,6 MHz, 1152 MHz en option |
+| `nvgpu-nano` 36.4.20261121-7 | chargé au démarrage ; 76,8 à 921,6 MHz, 1152 MHz en option |
 | CUDA 12.9 | `nvcc`, exécution, `nanoblas` (sous-ensemble de cuBLAS) |
 | HDMI | 1920x1080 à 60 Hz, EDID lu ; écran actif 5 s après le lancement du noyau |
 | Mémoire | 1600 MHz (tables EMC de cboot), 15 à 20 Go/s vus par CUDA |

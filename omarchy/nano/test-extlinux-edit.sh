@@ -97,14 +97,14 @@ LABEL nano-cuda
       LINUX /boot/Image-nano
       INITRD /boot/initramfs-linux-nano.img
       FDT /boot/nano.dtb
-      APPEND ${cbootargs} root=LABEL=ALARM rw rootwait video=HDMI-A-1:1280x720@60e loglevel=7 modprobe.blacklist=nouveau nano.mode=cuda
+      APPEND ${cbootargs} root=LABEL=ALARM rw rootwait video=HDMI-A-1:1280x720@60e loglevel=7 cma=256M modprobe.blacklist=nouveau nano.mode=cuda
 
 LABEL nano
       MENU LABEL linux-nano: desktop on nouveau, no CUDA (fallback)
       LINUX /boot/Image-nano
       INITRD /boot/initramfs-linux-nano.img
       FDT /boot/nano.dtb
-      APPEND ${cbootargs} root=LABEL=ALARM rw rootwait video=HDMI-A-1:1280x720@60e loglevel=7 nouveau.config=NvClkMode=0x07 modprobe.blacklist=nvgpu
+      APPEND ${cbootargs} root=LABEL=ALARM rw rootwait video=HDMI-A-1:1280x720@60e loglevel=7 cma=256M nouveau.config=NvClkMode=0x07 modprobe.blacklist=nvgpu
 EOF
 add_nano_entries "$TMP_DIR/d.conf" nano.dtb
 add_nano_entries "$TMP_DIR/d.conf" nano.dtb
@@ -112,6 +112,18 @@ if diff -u "$TMP_DIR/expected-d.conf" "$TMP_DIR/d.conf"; then
   printf 'PASS fixture D (entries added once)\n'
 else
   printf 'FAIL fixture D\n' >&2
+  exit 1
+fi
+
+# D2: entries made before cma=256M get it once; another cma= and the other entries are kept
+sed -e '/nano.mode=cuda/ s/ cma=256M//' -e '/NvClkMode/ s/cma=256M/cma=384M/' "$TMP_DIR/expected-d.conf" >"$TMP_DIR/d2.conf"
+sed -e '/nano.mode=cuda/ { s/ cma=256M//; s/$/ cma=256M/ }' -e '/NvClkMode/ s/cma=256M/cma=384M/' "$TMP_DIR/expected-d.conf" >"$TMP_DIR/expected-d2.conf"
+add_nano_entries "$TMP_DIR/d2.conf" nano.dtb
+add_nano_entries "$TMP_DIR/d2.conf" nano.dtb
+if diff -u "$TMP_DIR/expected-d2.conf" "$TMP_DIR/d2.conf"; then
+  printf 'PASS fixture D2 (cma added to existing entries)\n'
+else
+  printf 'FAIL fixture D2\n' >&2
   exit 1
 fi
 
