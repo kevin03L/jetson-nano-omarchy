@@ -15,7 +15,7 @@ Projet de recherche, sans support de NVIDIA, Seeed ou Omarchy.
 
 ## État
 
-Essayé sur une seule carte, version `j202-v1.2.1` (novembre 2026).
+Essayé sur une seule carte, version `j202-v1.2.2` (novembre 2026).
 
 | Domaine | État |
 |---|---|
@@ -97,8 +97,12 @@ vérifiés, 0 erreur.
 
    Puis `bash scripts/build-nano-stack.sh` compile et installe le reste (Mesa, Hyprland, CUDA...). Il télécharge
    les fichiers de NVIDIA depuis les serveurs de NVIDIA. Essayer d'abord avec `--dry-run`.
-5. **Redémarrer.** L'entrée `nano-cuda` lance le bureau et CUDA aux fréquences d'origine.
-6. **Vérifier.** `/usr/lib/nanoblas/gemm_test` ne doit signaler aucun échec.
+5. **Démarrage.** Depuis le `j202-boot-*.tar.zst` de la release, en root : `bash scripts/j202-install-boot.sh --dry-run`,
+   puis `bash scripts/j202-install-boot.sh --default nano-cuda` (ajouter `--logo` pour le premier écran). Il installe le noyau,
+   l'initramfs avec l'écran de chargement, les device trees avec les réglages mémoire de cette carte et les entrées du menu,
+   et sauvegarde ce qu'il remplace dans `/root`.
+6. **Redémarrer.** L'entrée `nano-cuda` lance le bureau et CUDA aux fréquences d'origine.
+7. **Vérifier.** `/usr/lib/nanoblas/gemm_test` ne doit signaler aucun échec.
 
 ### Options
 
@@ -107,8 +111,8 @@ vérifiés, 0 erreur.
   Garder `nano-cuda` comme secours.
 - **Alimentation** : `SUPPLY_W=20` dans `/etc/jetson-nano/power.conf` pour le bloc 12 V / 5 A.
 - **Ventilateur** : `/etc/jetson-nano/fan.conf` (exemple fourni).
-- **Écran de démarrage** : `omarchy/nano/bootlogo.py` pour le premier logo (il sauvegarde l'original), thème
-  Plymouth `jetson-nano` pour le chargement. Les images sont à fournir ([docs/j202-plan.md](docs/j202-plan.md)).
+- **Écran de démarrage** : l'image du projet (`omarchy/nano/bootlogo-j202.png`) au premier écran avec `--logo`, et à
+  l'écran de chargement (thème Plymouth `jetson-nano`). Pour une autre image : `omarchy/nano/bootlogo.py`.
 
 ## Démarrage
 

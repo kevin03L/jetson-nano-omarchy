@@ -15,7 +15,7 @@ A research project, not supported by NVIDIA, Seeed or Omarchy.
 
 ## Status
 
-Tested on one board, release `j202-v1.2.1` (November 2026).
+Tested on one board, release `j202-v1.2.2` (November 2026).
 
 | Area | State |
 |---|---|
@@ -96,8 +96,12 @@ Measured in Maximum: 13.9 W and 42 °C peak (fan running), 2.8 W idle. CPU and G
 
    Then `bash scripts/build-nano-stack.sh` builds and installs the rest (Mesa, Hyprland, CUDA...). It downloads
    NVIDIA's files from NVIDIA. Run it with `--dry-run` first.
-5. **Reboot.** The `nano-cuda` entry starts the desktop and CUDA at the stock clocks.
-6. **Check.** `/usr/lib/nanoblas/gemm_test` must report no failure.
+5. **Boot files.** From the release's `j202-boot-*.tar.zst`, as root: `bash scripts/j202-install-boot.sh --dry-run`,
+   then `bash scripts/j202-install-boot.sh --default nano-cuda` (add `--logo` for the first picture). It installs the kernel,
+   the initramfs with the loading screen, the device trees with this board's memory timings and the menu entries, and saves
+   what it replaces in `/root`.
+6. **Reboot.** The `nano-cuda` entry starts the desktop and CUDA at the stock clocks.
+7. **Check.** `/usr/lib/nanoblas/gemm_test` must report no failure.
 
 ### Options
 
@@ -106,8 +110,8 @@ Measured in Maximum: 13.9 W and 42 °C peak (fan running), 2.8 W idle. CPU and G
   Keep `nano-cuda` as the fallback.
 - **Supply**: `SUPPLY_W=20` in `/etc/jetson-nano/power.conf` for the 12 V / 5 A adapter.
 - **Fan**: `/etc/jetson-nano/fan.conf` (an example is installed).
-- **Boot screen**: `omarchy/nano/bootlogo.py` for the first logo (it saves the original one), Plymouth theme
-  `jetson-nano` for the loading screen. You supply the pictures ([docs/j202-plan.md](docs/j202-plan.md)).
+- **Boot screen**: the project's picture (`omarchy/nano/bootlogo-j202.png`) on the first screen with `--logo`, and on the
+  loading screen (Plymouth theme `jetson-nano`). To use another one: `omarchy/nano/bootlogo.py`.
 
 ## Boot
 
