@@ -9,7 +9,7 @@
 # the driver refuses to decode otherwise.
 pkgname=vaapi-tegra
 pkgver=2.1
-pkgrel=2
+pkgrel=3
 pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264, H.265, VP9, VP8, MPEG-2)"
 arch=(aarch64)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"

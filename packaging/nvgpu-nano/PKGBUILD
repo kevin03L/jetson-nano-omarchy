@@ -14,17 +14,17 @@
 # (modprobe.blacklist=nouveau nano.mode=cuda) and nvgpu loads by its device-tree alias; the
 # nouveau entry must blacklist nvgpu (modprobe.blacklist=nvgpu).
 pkgname=nvgpu-nano
-_kernver=7.2.11-6-nano-ARCH
+_kernver=7.2.11-7-nano-ARCH
 _nvgpu=b2e06416fca6bc40925d3e8cb3dba4033778e555
 _nvoot=9ca0e7c617c1648a21033bf2e9f90f9789fb6379
 pkgver=36.4.20261121
-pkgrel=8
+pkgrel=9
 pkgdesc="NVIDIA nvgpu and nvmap kernel drivers for the Jetson Nano GPU on linux-nano"
 arch=(aarch64)
 url="https://github.com/Kristianaaron/jetson-nano-omarchy"
 license=(GPL-2.0-only)
-depends=('linux-nano=7.2.11-6' nvidia-l4t-gm20b-firmware nvidia-l4t-r36 mesa)
-makedepends=('linux-nano-headers=7.2.11-6' git bc)
+depends=('linux-nano=7.2.11-7' nvidia-l4t-gm20b-firmware nvidia-l4t-r36 mesa)
+makedepends=('linux-nano-headers=7.2.11-7' git bc)
 options=(!strip !debug)
 source=("linux-nvgpu::git+https://github.com/Kristianaaron/linux-nvgpu.git#commit=$_nvgpu"
         "linux-nv-oot::git+https://github.com/Kristianaaron/linux-nv-oot.git#commit=$_nvoot"

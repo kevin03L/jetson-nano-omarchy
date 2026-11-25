@@ -161,17 +161,18 @@ Fait :
   - pilote réécrit (`packaging/vaapi-tegra/driver`) : H.264, H.265 8 et 10 bits, VP9 (profil 0) et VP8 identiques au logiciel (images B, tranches,
     tuiles, prédiction pondérée, matrices, 854 de large, 1080p, 4K) ; MPEG-2 à 67-70 dB, 720 lignes entrelacé compris. Travaux en file (8), VIC enchaîné
     par le syncpoint. La puce n'a ni AV1, ni VP9 10 bits, ni H.264 10 bits ;
-  - NVDEC et VIC à 537,6 MHz sur PLLC2 (614,4 marche aussi, mais la tension du cœur est fixe, 1,075 V). Avec relecture, à 614,4 : H.264 1080p
-    224 images/s (116 avant), 4K 60 (30) ; H.265 1080p 321, 4K 70 ; VP9 4K 73 ; compter 12 % de moins à 537,6 ;
+  - NVDEC et VIC à 537,6 MHz sur PLLC2 (614,4 marche aussi, mais la tension du cœur est fixe, 1,075 V). Images par seconde, décodage seul / avec
+    relecture : H.264 1080p 207 / 199 (116 avant), 4K 59 / 54 (30) ; H.265 1080p 317 / 290, 4K 78 / 64 ; H.265 10 bits 1080p 263 / 170, 4K 66 / 37 ;
+    VP9 1080p 372 / 333, 4K 94 / 74 ;
   - le VIC se bloquait quand deux programmes lui donnaient de petites copies (en quelques secondes, quelle que soit la fréquence) : l'hôte ne sépare
     que les travaux d'un même programme. Chaque travail attend maintenant que le moteur soit au repos (incrément OP_DONE puis attente relative) :
     225 000 copies de 6 programmes sans un blocage, sans coût mesurable ;
   - affichage sans copie : 0006 fait importer les plans linéaires par Zink (le pilote NVIDIA n'a aucun modificateur pour R8, RG8, R16, RG16 ; lignes
-    multiples de 128 octets, tampon multiple de 64 Ko). mpv `--hwdec=vaapi`, en % d'un cœur (sur 400) : 1080p60 85 (logiciel 204), 4K30 H.264 72,
-    1080p30 H.265 10 bits 77 (logiciel 302) ;
+    multiples de 128 octets, tampon multiple de 64 Ko). mpv sans réglage (hwdec=auto-safe choisit vaapi), processeur
+    en % (sur 400), 0 image perdue : 1080p60 76 (logiciel 203), H.265 10 bits 1080p30 55 (323), 4K30 H.264 67 (198), 4K30 H.265 69 (325) ;
   - Firefox 158 : décodage matériel sans copie, bac à sable actif, sans réglage. Il a fallu ne plus lire /sys dans le pilote (la puce se reconnaît à
-    l'ouverture du canal) et 0007 (Firefox vérifie l'image avec EGL dans le processus de décodage, qui n'a pas accès au GPU). 1080p60 118 % au lieu
-    de 246, 4K30 112 au lieu de 272, 4K VP9 110 au lieu de 306, H.265 10 bits 1080p30 76 au lieu de 303 (et 14 images perdues au lieu de 428) ;
+    l'ouverture du canal) et 0007 (Firefox vérifie l'image avec EGL dans le processus de décodage, qui n'a pas accès au GPU). 1080p60 113 % au lieu
+    de 246, 4K30 109 au lieu de 272, 4K VP9 110 au lieu de 306, H.265 10 bits 1080p30 76 au lieu de 303 (et 14 images perdues au lieu de 428) ;
   - Firefox ne propose plus l'AV1 aux sites (vaapi-tegra 2.1-2, valeur par défaut modifiable dans about:config) : ils envoient de la VP9 ou du H.264 ;
   - le VIC du Tegra210 bloque sur tous les formats 10 bits : un P010 est copié comme un NV12 deux fois plus large. L'x265 d'Arch Linux ARM est en
     8 bits seulement et le dit à peine : fabriquer les fichiers d'essai 10 bits ailleurs, et vérifier `pix_fmt` avec ffprobe ;
@@ -179,6 +180,7 @@ Fait :
     le flux par ses surfaces ; 90 images identiques. Une image annoncée plus grande que sa surface est refusée, un objet détruit par un fil reste
     tant qu'un autre s'en sert ;
   - 4 veilles de 12 s en pleine lecture (mpv sans copie et trois décodages contrôlés) : 38 passages identiques, aucune erreur ;
+  - code : 0 avertissement (-Wall -Wextra -Wshadow), 0 erreur AddressSanitizer / UBSan (17 vidéos, 14 flux abîmés), 0 fuite ;
   - essayé : 30 flux abîmés (10 fichiers, tous les codecs), 4 codecs à la fois, 12 arrêts par kill -9, mémoire stable, aller et retour PutImage ;
   - Chromium d'Arch Linux ARM est compilé sans VA-API : il décode avec le processeur.
 - Démarrage en boucle (2026-11-25 au soir, deux fois) : la carte se remettait à zéro pendant que Linux sondait l'eMMC, avec toutes les entrées, ancien

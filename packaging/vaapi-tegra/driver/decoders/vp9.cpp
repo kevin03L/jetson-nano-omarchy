@@ -155,10 +155,10 @@ public:
             v = std::min(v, 253u);
         }
 
-        auto recenter = [](unsigned v, unsigned m) -> unsigned {
-            if (v > 2 * m)
-                return v;
-            return v & 1 ? m - ((v + 1) >> 1) : m + (v >> 1);
+        auto recenter = [](unsigned d, unsigned center) -> unsigned {
+            if (d > 2 * center)
+                return d;
+            return d & 1 ? center - ((d + 1) >> 1) : center + (d >> 1);
         };
         unsigned m = prob - 1;
         if (m << 1 <= 254)
