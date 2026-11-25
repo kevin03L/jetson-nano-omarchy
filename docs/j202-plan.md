@@ -172,6 +172,7 @@ Fait :
   - Firefox 158 : décodage matériel sans copie, bac à sable actif, sans réglage. Il a fallu ne plus lire /sys dans le pilote (la puce se reconnaît à
     l'ouverture du canal) et 0007 (Firefox vérifie l'image avec EGL dans le processus de décodage, qui n'a pas accès au GPU). 1080p60 118 % au lieu
     de 246, 4K30 112 au lieu de 272, 4K VP9 110 au lieu de 306, H.265 10 bits 1080p30 76 au lieu de 303 (et 14 images perdues au lieu de 428) ;
+  - Firefox ne propose plus l'AV1 aux sites (vaapi-tegra 2.1-2, valeur par défaut modifiable dans about:config) : ils envoient de la VP9 ou du H.264 ;
   - le VIC du Tegra210 bloque sur tous les formats 10 bits : un P010 est copié comme un NV12 deux fois plus large. L'x265 d'Arch Linux ARM est en
     8 bits seulement et le dit à peine : fabriquer les fichiers d'essai 10 bits ailleurs, et vérifier `pix_fmt` avec ffprobe ;
   - VP9 à taille variable (références redimensionnées, visioconférence) : un lecteur crée un autre contexte au milieu du flux, l'état du décodeur suit
