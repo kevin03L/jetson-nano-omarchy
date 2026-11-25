@@ -174,6 +174,7 @@ if ((BOOT)); then
   [[ -f $live ]] || die "no $live (the card builder copies the board's device tree there)"
   pacman -S --needed --noconfirm dtc
   bash "$here/images/mainline-kernel/make-nano-dtb.sh" "$live" "$nano_dtb"
+  case $nano_dtb in /boot/j202/*) bash "$here/images/mainline-kernel/fix-emmc-dtb.sh" "$nano_dtb" ;; esac
   bash "$here/images/mainline-kernel/fix-video-dtb.sh" "$nano_dtb"
   [[ -f $EXTLINUX.pre-nano ]] || cp -p "$EXTLINUX" "$EXTLINUX.pre-nano"
   add_nano_entries "$EXTLINUX" "${nano_dtb#/boot/}" "$src_label"

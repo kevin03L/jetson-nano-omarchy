@@ -1,41 +1,33 @@
-# vaapi-tegra: hardware video decoding (H.264, MPEG-2) with the Tegra210's NVDEC, through VA-API.
+# vaapi-tegra: hardware video decoding (H.264, H.265 8/10 bits, VP9, VP8, MPEG-2) with the
+# Tegra210's NVDEC, through VA-API.
 #
-# Mikko Perttunen's vaapi-tegra-driver (MIT, pinned by commit) with a patch that makes it decode
-# correctly and read pictures back quickly. It uses mainline's tegra-drm, so it does not depend on
-# the GPU driver. The NVDEC firmware is in nvidia-l4t-gm20b-firmware.
+# The driver is in driver/ (it started from Mikko Perttunen's vaapi-tegra-driver). It uses mainline's
+# tegra-drm, so it does not depend on the GPU driver. The NVDEC firmware is in
+# nvidia-l4t-gm20b-firmware. Players that show the pictures without copying them need mesa 1.8.
 #
 # The device tree must power NVJPG together with NVDEC (images/mainline-kernel/fix-video-dtb.sh);
 # the driver refuses to decode otherwise.
 pkgname=vaapi-tegra
-pkgver=0.0.20210722
+pkgver=2.0
 pkgrel=1
-_commit=49a56d392a21ef3ff9ed848b6b98293572d14eba
-pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264 and MPEG-2 decoding)"
+pkgdesc="VA-API driver for NVDEC on the Jetson Nano (H.264, H.265, VP9, VP8, MPEG-2)"
 arch=(aarch64)
-url="https://github.com/cyndis/vaapi-tegra-driver"
-license=(MIT)
+url="https://github.com/Kristianaaron/jetson-nano-omarchy"
+license=(MIT LGPL-2.1-or-later)
 depends=(libva libdrm gcc-libs nvidia-l4t-gm20b-firmware)
-makedepends=(git cmake)
+makedepends=(cmake)
 options=(!debug)
-source=("vaapi-tegra-driver::git+https://github.com/cyndis/vaapi-tegra-driver.git#commit=$_commit"
-        0001-tegra210-correct-decoding-and-fast-read-back.patch
-        70-vaapi-tegra.rules)
-sha256sums=('SKIP'
-            '65f4c08902a6e9cf18f3a22af83871fd2ba1e4200db2b1c63e0e756a8821ea8b'
-            'dfd41a77996d12a8cd469ff35c2d126a6f432db945eb7fb2e7c79555bf8ffa64')
-
-prepare() {
-  git -C vaapi-tegra-driver apply "$srcdir/0001-tegra210-correct-decoding-and-fast-read-back.patch"
-}
+source=(70-vaapi-tegra.rules)
+sha256sums=('dfd41a77996d12a8cd469ff35c2d126a6f432db945eb7fb2e7c79555bf8ffa64')
 
 build() {
-  cmake -S vaapi-tegra-driver -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/usr \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DLIBVA_DRIVERS_PATH=lib/dri
+  cmake -S "$startdir/driver" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DLIBVA_DRIVERS_PATH=lib/dri
   cmake --build build
 }
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
   install -Dm644 70-vaapi-tegra.rules -t "$pkgdir/usr/lib/udev/rules.d/"
-  install -Dm644 vaapi-tegra-driver/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname/"
+  install -Dm644 "$startdir/driver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"
 }
