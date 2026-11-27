@@ -90,13 +90,12 @@ impl Account {
 /// A SHA-512 crypt hash ($6$…), as /etc/shadow and `usermod -p` expect.
 pub fn hash_password(password: &str) -> Result<String, String> {
     use sha_crypt::{PasswordHasher, ShaCrypt};
-    // the crypt salt alphabet; 16 characters of salt
-    const ALPHABET: &[u8; 64] = b"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    let mut raw = [0u8; 16];
+    // `sha-crypt` encodes the provided salt bytes with crypt64 internally: 12 random bytes encode
+    // to 16 crypt64 characters, matching Linux libxcrypt's 16-char SHA-512 salt limit.
+    let mut raw = [0u8; 12];
     getrandom::fill(&mut raw).map_err(|e| format!("génération du sel : {e}"))?;
-    let salt: Vec<u8> = raw.iter().map(|b| ALPHABET[(b % 64) as usize]).collect();
     let hash = ShaCrypt::SHA512
-        .hash_password_with_salt(password.as_bytes(), &salt)
+        .hash_password_with_salt(password.as_bytes(), &raw)
         .map_err(|e| format!("hachage du mot de passe : {e}"))?;
     Ok(hash.to_string())
 }
@@ -140,6 +139,15 @@ mod tests {
         use std::str::FromStr;
         let h = hash_password("hunter2good").unwrap();
         assert!(h.starts_with("$6$"));
+        let parts: Vec<&str> = h.split('$').collect();
+        assert_eq!(parts.len(), 5, "unexpected crypt format: {h}");
+        assert_eq!(parts[1], "6");
+        assert!(
+            parts[3].len() <= 16 && parts[3].len() == 16,
+            "bad salt len: {}",
+            parts[3].len()
+        );
+        assert_eq!(parts[4].len(), 86, "bad digest len: {}", parts[4].len());
         let parsed = PasswordHash::from_str(&h).unwrap();
         assert!(ShaCrypt::SHA512.verify_password(b"hunter2good", &parsed).is_ok());
         assert!(ShaCrypt::SHA512.verify_password(b"wrong", &parsed).is_err());

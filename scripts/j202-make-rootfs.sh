@@ -101,6 +101,7 @@ if [[ -f $conf ]]; then
       fi
       [[ -n ${J202_HOST:-} ]] && echo "$J202_HOST" > /etc/hostname
       passwd -l root || true
+      id alarm >/dev/null 2>&1 && passwd -l alarm || true
     fi
   fi
   shred -u "$conf" 2>/dev/null || rm -f "$conf"
@@ -108,7 +109,11 @@ fi
 
 # 3. boot files tuned to this board (memory timings from cboot), then the NVDEC firmware from L4T
 if [[ -d /usr/local/lib/j202/boot-archive ]]; then
-  bash /usr/local/lib/j202/boot-archive/scripts/j202-install-boot.sh --default nano-cuda || true
+  if command -v magick >/dev/null 2>&1 && command -v lz4 >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    bash /usr/local/lib/j202/boot-archive/scripts/j202-install-boot.sh --default nano-cuda --logo || true
+  else
+    bash /usr/local/lib/j202/boot-archive/scripts/j202-install-boot.sh --default nano-cuda || true
+  fi
 fi
 l4t=$(ls /boot/Jetson-210_Linux_R*_aarch64.tbz2 2>/dev/null | head -n1 || true)
 if [[ -n $l4t ]]; then
