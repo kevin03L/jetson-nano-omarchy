@@ -100,6 +100,27 @@ if [[ -f $conf ]]; then
         usermod -p "$J202_PASS_HASH" "$J202_USER" || true
       fi
       [[ -n ${J202_HOST:-} ]] && echo "$J202_HOST" > /etc/hostname
+      if [[ -n ${J202_TZ:-} && -e /usr/share/zoneinfo/$J202_TZ ]]; then
+        ln -sf "/usr/share/zoneinfo/$J202_TZ" /etc/localtime
+      fi
+      if [[ -n ${J202_LOCALE:-} ]]; then
+        sed -i -E "s|^#\s*(${J202_LOCALE}[[:space:]])|\1|" /etc/locale.gen || true
+        locale-gen || true
+        printf 'LANG=%s\n' "$J202_LOCALE" > /etc/locale.conf
+      fi
+      if [[ -n ${J202_KEYMAP:-} || -n ${J202_XKBLAYOUT:-} ]]; then
+        {
+          [[ -n ${J202_KEYMAP:-} ]] && printf 'KEYMAP=%s\n' "$J202_KEYMAP"
+          [[ -n ${J202_XKBLAYOUT:-} ]] && printf 'XKBLAYOUT=%s\n' "$J202_XKBLAYOUT"
+          [[ -n ${J202_XKBVARIANT:-} ]] && printf 'XKBVARIANT=%s\n' "$J202_XKBVARIANT"
+        } > /etc/vconsole.conf
+        localectl set-x11-keymap "${J202_XKBLAYOUT:-us}" "" "${J202_XKBVARIANT:-}" || true
+      fi
+      if [[ -n ${J202_XKBLAYOUT:-} && -d /home/$J202_USER/.config/hypr ]]; then
+        printf '\nhl.config({ input = { kb_layout = "%s", kb_variant = "%s" } })\n' \
+          "$J202_XKBLAYOUT" "${J202_XKBVARIANT:-}" >> "/home/$J202_USER/.config/hypr/input.lua"
+        chown "$J202_USER:$J202_USER" "/home/$J202_USER/.config/hypr/input.lua"
+      fi
       passwd -l root || true
       id alarm >/dev/null 2>&1 && passwd -l alarm || true
     fi

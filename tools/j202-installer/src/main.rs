@@ -470,6 +470,59 @@ impl App {
                 ui.add(egui::TextEdit::singleline(&mut a.hostname).desired_width(200.0));
                 err(ui, account::check_hostname(&a.hostname), false);
                 ui.end_row();
+
+                ui.label("Pays / Langue");
+                let loc_label = account::LOCALES
+                    .iter()
+                    .find(|l| l.locale == a.locale)
+                    .map(|l| l.label)
+                    .unwrap_or(a.locale.as_str());
+                egui::ComboBox::from_id_salt("locale")
+                    .width(200.0)
+                    .selected_text(loc_label)
+                    .show_ui(ui, |ui| {
+                        for preset in account::LOCALES {
+                            if ui.selectable_label(a.locale == preset.locale, preset.label).clicked() {
+                                a.apply_locale(preset);
+                            }
+                        }
+                    });
+                ui.label("");
+                ui.end_row();
+
+                ui.label("Clavier");
+                let kb_label = account::KEYBOARDS
+                    .iter()
+                    .find(|k| k.xkb_layout == a.xkb_layout && k.xkb_variant == a.xkb_variant)
+                    .map(|k| k.label)
+                    .unwrap_or(a.xkb_layout.as_str());
+                egui::ComboBox::from_id_salt("keyboard")
+                    .width(200.0)
+                    .selected_text(kb_label)
+                    .show_ui(ui, |ui| {
+                        for kb in account::KEYBOARDS {
+                            let sel = a.xkb_layout == kb.xkb_layout && a.xkb_variant == kb.xkb_variant;
+                            if ui.selectable_label(sel, kb.label).clicked() {
+                                a.apply_keyboard(kb);
+                            }
+                        }
+                    });
+                ui.label("");
+                ui.end_row();
+
+                ui.label("Fuseau horaire");
+                egui::ComboBox::from_id_salt("timezone")
+                    .width(200.0)
+                    .selected_text(a.timezone.as_str())
+                    .show_ui(ui, |ui| {
+                        for &tz in account::TIMEZONES {
+                            if ui.selectable_label(a.timezone == tz, tz).clicked() {
+                                a.timezone = tz.into();
+                            }
+                        }
+                    });
+                ui.label("");
+                ui.end_row();
             });
         ui.add_space(10.0);
         ui.checkbox(
