@@ -34,12 +34,32 @@ pub struct Release {
     pub local_dir: Option<PathBuf>,
 }
 
+fn is_image_asset(name: &str) -> bool {
+    name.starts_with("j202-rootfs-") && (name.ends_with(".img.zst") || name.contains(".img.zst.part"))
+}
+
 impl Release {
-    /// The system written on the eMMC's APP partition.
-    pub fn image(&self) -> Option<&Asset> {
-        self.assets
+    /// Ordered image assets (`j202-rootfs-*.img.zst` or `j202-rootfs-*.img.zst.part01`, ...).
+    pub fn image_parts(&self) -> Vec<&Asset> {
+        if let Some(single) = self
+            .assets
             .iter()
             .find(|a| a.name.starts_with("j202-rootfs-") && a.name.ends_with(".img.zst"))
+        {
+            return vec![single];
+        }
+        let mut parts: Vec<&Asset> = self
+            .assets
+            .iter()
+            .filter(|a| a.name.starts_with("j202-rootfs-") && a.name.contains(".img.zst.part"))
+            .collect();
+        parts.sort_by(|a, b| a.name.cmp(&b.name));
+        parts
+    }
+
+    /// The system written on the eMMC's APP partition (first part if split).
+    pub fn image(&self) -> Option<&Asset> {
+        self.image_parts().into_iter().next()
     }
 
     pub fn size(&self) -> u64 {
@@ -65,15 +85,19 @@ pub fn local(dir: &Path) -> Result<Release, String> {
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let is_release_file = name.ends_with(".pkg.tar.zst")
+            || name.ends_with(".pkg.tar.xz")
             || (name.starts_with("j202-boot-") && name.ends_with(".tar.zst"))
-            || (name.starts_with("j202-rootfs-") && name.ends_with(".img.zst"))
+            || is_image_asset(&name)
             || (name.starts_with(L4T_PREFIX) && name.ends_with("_aarch64.tbz2"));
         if !is_release_file {
             continue;
         }
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-        if let Some(rest) = name.strip_prefix("j202-rootfs-") {
-            tag = rest.strip_suffix(".img.zst").map(str::to_owned);
+        if let Some(rest) = name.strip_prefix("j202-rootfs-")
+            && let Some(ver) = rest.split(".img.zst").next()
+            && !ver.is_empty()
+        {
+            tag = Some(ver.to_owned());
         }
         assets.push(Asset {
             name,
@@ -155,6 +179,22 @@ mod tests {
     #[test]
     fn bad_json() {
         assert!(parse("{").is_err());
+    }
+
+    #[test]
+    fn finds_multipart_image_in_order() {
+        let json = r#"[
+          {"tag_name":"j202-v1.2.3","draft":false,"prerelease":false,"assets":[
+            {"name":"j202-rootfs-v1.2.3.img.zst.part02","size":4,"browser_download_url":"u2"},
+            {"name":"j202-rootfs-v1.2.3.img.zst.part01","size":6,"browser_download_url":"u1"}]}
+        ]"#;
+        let r = parse(json).unwrap();
+        let names: Vec<&str> = r[0].image_parts().iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["j202-rootfs-v1.2.3.img.zst.part01", "j202-rootfs-v1.2.3.img.zst.part02"]
+        );
+        assert_eq!(r[0].image().unwrap().name, "j202-rootfs-v1.2.3.img.zst.part01");
     }
 
     #[test]

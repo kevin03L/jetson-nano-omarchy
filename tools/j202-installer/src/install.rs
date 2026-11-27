@@ -16,7 +16,7 @@ use crate::usb;
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -169,7 +169,7 @@ fn check_files(plan: &Plan, log: &dyn Fn(String)) -> Result<(), String> {
     if let Some(f) = plan.files.iter().find(|f| !f.is_done()) {
         return Err(format!("{} n'est pas téléchargé.", f.dest.display()));
     }
-    if image_path(plan).is_none() {
+    if image_paths(plan).is_none() {
         return Err(format!(
             "La release {} n'a pas d'image système (j202-rootfs-*.img.zst).",
             plan.release.tag
@@ -185,12 +185,21 @@ fn check_files(plan: &Plan, log: &dyn Fn(String)) -> Result<(), String> {
     Ok(())
 }
 
-fn image_path(plan: &Plan) -> Option<PathBuf> {
-    let asset = plan.release.image()?;
-    plan.files
-        .iter()
-        .find(|f| f.dest.file_name().is_some_and(|n| n == asset.name.as_str()))
-        .map(|f| f.dest.clone())
+fn image_paths(plan: &Plan) -> Option<Vec<PathBuf>> {
+    let assets = plan.release.image_parts();
+    if assets.is_empty() {
+        return None;
+    }
+    let mut out = Vec::with_capacity(assets.len());
+    for asset in assets {
+        let p = plan
+            .files
+            .iter()
+            .find(|f| f.dest.file_name().is_some_and(|n| n == asset.name.as_str()))
+            .map(|f| f.dest.clone())?;
+        out.push(p);
+    }
+    Some(out)
 }
 
 fn hex(b: &[u8]) -> String {
@@ -367,18 +376,26 @@ fn write_rootfs(
     log: &dyn Fn(String),
     set_progress: &dyn Fn(Option<(u64, u64)>),
 ) -> Result<(), String> {
-    let img_zst = image_path(plan).ok_or("Image système introuvable.")?;
+    let parts = image_paths(plan).ok_or("Image système introuvable.")?;
     log("Calcul de la taille décompressée de l'image…".into());
-    let total = zstd_uncompressed_size(&img_zst)?;
+    let total = zstd_uncompressed_size(&parts)?;
     run_ctx.written_size = total;
-    log(format!(
-        "Écriture de {} ({} Mio) sur APP…",
-        img_zst.file_name().unwrap_or_default().to_string_lossy(),
-        total / (1024 * 1024)
-    ));
+    let first_name = parts[0].file_name().unwrap_or_default().to_string_lossy();
+    if parts.len() == 1 {
+        log(format!(
+            "Écriture de {first_name} ({} Mio) sur APP…",
+            total / (1024 * 1024)
+        ));
+    } else {
+        log(format!(
+            "Écriture de {first_name} ({} parties, {} Mio) sur APP…",
+            parts.len(),
+            total / (1024 * 1024)
+        ));
+    }
 
-    let f = File::open(&img_zst).map_err(|e| format!("{} : {e}", img_zst.display()))?;
-    let dec = zstd::Decoder::new(BufReader::new(f)).map_err(|e| format!("décodeur zstd : {e}"))?;
+    let reader = MultiFileReader::new(parts);
+    let dec = zstd::Decoder::new(BufReader::new(reader)).map_err(|e| format!("décodeur zstd : {e}"))?;
     let mut patched = FirstbootPatchReader::new(dec, &plan.firstboot_conf)?;
 
     let cboot = run_ctx.cboot.as_mut().ok_or("CBoot recovery non initialisé.")?;
@@ -527,13 +544,51 @@ impl<R: Read> Read for FirstbootPatchReader<R> {
     }
 }
 
-/// Determines the uncompressed byte size of a `.zst` image.
-/// Uses the zstd frame content size header when present on a single-frame file; otherwise streams
-/// once through the decoder to count the exact size.
-pub fn zstd_uncompressed_size(path: &Path) -> Result<u64, String> {
-    let mut f = File::open(path).map_err(|e| format!("{} : {e}", path.display()))?;
-    let mut dec = zstd::Decoder::new(BufReader::new(&mut f)).map_err(|e| format!("décodeur zstd : {e}"))?;
-    io::copy(&mut dec, &mut io::sink()).map_err(|e| format!("lecture de {} : {e}", path.display()))
+/// Streams a sequence of files as one contiguous `Read` stream (supports split `.img.zst.partNN`).
+pub struct MultiFileReader {
+    files: Vec<PathBuf>,
+    idx: usize,
+    cur: Option<File>,
+}
+
+impl MultiFileReader {
+    pub fn new(files: Vec<PathBuf>) -> Self {
+        Self {
+            files,
+            idx: 0,
+            cur: None,
+        }
+    }
+}
+
+impl Read for MultiFileReader {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        loop {
+            if self.cur.is_none() {
+                if self.idx >= self.files.len() {
+                    return Ok(0);
+                }
+                let p = &self.files[self.idx];
+                self.cur = Some(File::open(p)?);
+                self.idx += 1;
+            }
+            let n = self.cur.as_mut().unwrap().read(out)?;
+            if n > 0 {
+                return Ok(n);
+            }
+            self.cur = None;
+        }
+    }
+}
+
+/// Determines the uncompressed byte size of a single or multi-part `.zst` image.
+pub fn zstd_uncompressed_size(paths: &[PathBuf]) -> Result<u64, String> {
+    if paths.is_empty() {
+        return Err("Image système introuvable.".into());
+    }
+    let reader = MultiFileReader::new(paths.to_vec());
+    let mut dec = zstd::Decoder::new(BufReader::new(reader)).map_err(|e| format!("décodeur zstd : {e}"))?;
+    io::copy(&mut dec, &mut io::sink()).map_err(|e| format!("lecture de {} : {e}", paths[0].display()))
 }
 
 #[cfg(test)]
@@ -601,7 +656,14 @@ mod tests {
         let payload = vec![0x42u8; 123_456];
         let compressed = zstd::encode_all(Cursor::new(&payload), 3).unwrap();
         fs::write(&path, &compressed).unwrap();
-        assert_eq!(zstd_uncompressed_size(&path).unwrap(), 123_456);
+        assert_eq!(zstd_uncompressed_size(std::slice::from_ref(&path)).unwrap(), 123_456);
+
+        let mid = compressed.len() / 2;
+        let p1 = dir.join("t.img.zst.part01");
+        let p2 = dir.join("t.img.zst.part02");
+        fs::write(&p1, &compressed[..mid]).unwrap();
+        fs::write(&p2, &compressed[mid..]).unwrap();
+        assert_eq!(zstd_uncompressed_size(&[p1, p2]).unwrap(), 123_456);
         fs::remove_dir_all(&dir).unwrap();
     }
 }
