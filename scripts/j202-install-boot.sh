@@ -37,7 +37,8 @@ tr '\0' '\n' < /proc/device-tree/compatible | grep -qx 'seeed,recomputer-j1020-v
 for c in dtc fdtget fdtput findmnt; do command -v $c >/dev/null || die "needs $c (pacman -S dtc util-linux)"; done
 BOOT=/boot EXT=/boot/extlinux/extlinux.conf
 [[ -f $EXT ]] || die "no $EXT: is /boot mounted?"
-[[ $(findmnt -no TARGET -T /boot) != / ]] || die "/boot is not on the eMMC (not mounted?)"
+[[ $(findmnt -no TARGET -T /boot) != / || $(findmnt -no SOURCE /) == /dev/mmcblk0p1 ]] \
+  || die "/boot is not on the eMMC (not mounted?)"
 
 # the kernel of the archive, or the installed one when run from a checkout
 if [[ -f $here/boot/Image-nano ]]; then

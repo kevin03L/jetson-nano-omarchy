@@ -121,6 +121,19 @@ if [[ -f $conf ]]; then
           "$J202_XKBLAYOUT" "${J202_XKBVARIANT:-}" >> "/home/$J202_USER/.config/hypr/input.lua"
         chown "$J202_USER:$J202_USER" "/home/$J202_USER/.config/hypr/input.lua"
       fi
+      if [[ -n ${J202_LOCALE:-} ]]; then
+        lang_code=${J202_LOCALE%%_*}
+        if [[ -f /usr/share/omarchy/default/i18n/$lang_code/shell.json ]]; then
+          install -d -o "$J202_USER" -g "$J202_USER" \
+            "/home/$J202_USER/.config/omarchy" "/home/$J202_USER/.config/uwsm/env.d"
+          printf '%s\n' "$lang_code" > "/home/$J202_USER/.config/omarchy/language"
+          printf '# The session language, set by j202 firstboot.\nexport LANG=%s\n' "$J202_LOCALE" \
+            > "/home/$J202_USER/.config/uwsm/env.d/50-omarchy-language"
+          chown "$J202_USER:$J202_USER" \
+            "/home/$J202_USER/.config/omarchy/language" \
+            "/home/$J202_USER/.config/uwsm/env.d/50-omarchy-language"
+        fi
+      fi
       passwd -l root || true
       id alarm >/dev/null 2>&1 && passwd -l alarm || true
     fi
