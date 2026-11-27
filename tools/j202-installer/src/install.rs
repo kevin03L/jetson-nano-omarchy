@@ -41,6 +41,8 @@ pub struct Plan {
     pub files: Vec<Item>,
     /// `/boot/j202-firstboot.conf` written into the streamed ext4 image at the write step.
     pub firstboot_conf: String,
+    /// When true, reads back `APP` after writing to verify ext4 magic and SHA-256.
+    pub verify_flash: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -48,6 +50,7 @@ pub enum State {
     Waiting,
     Running,
     Done,
+    Skipped,
     Failed,
 }
 
@@ -106,6 +109,11 @@ pub fn start(plan: Plan, ctx: eframe::egui::Context) -> Run {
             if c.load(Ordering::Relaxed) {
                 result = Err("Installation annulée.".into());
                 break;
+            }
+            if i == 5 && !plan.verify_flash {
+                s.lock().unwrap().steps[i] = State::Skipped;
+                log("Vérification par relecture ignorée (option désactivée).".into());
+                continue;
             }
             {
                 let mut g = s.lock().unwrap();

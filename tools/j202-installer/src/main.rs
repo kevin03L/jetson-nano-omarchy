@@ -46,6 +46,7 @@ struct App {
     download: Option<download::Task>,
     account: account::Account,
     apx: Arc<Mutex<usb::Recovery>>,
+    verify_flash: bool,
     confirm_erase: bool,
     run: Option<install::Run>,
     show_log: bool,
@@ -88,6 +89,7 @@ impl App {
             download: None,
             account: account::Account::new(),
             apx: usb::watch(cc.egui_ctx.clone()),
+            verify_flash: false,
             confirm_erase: false,
             run: None,
             show_log: false,
@@ -318,15 +320,10 @@ impl App {
                 ui.end_row();
 
                 ui.label("Fichiers NVIDIA (L4T R32.7.6)");
-                if l4t_done {
-                    ui.colored_label(
-                        OK,
-                        if is_local {
-                            "✔ dans le dossier"
-                        } else {
-                            "✔ téléchargés"
-                        },
-                    );
+                if r.local_l4t().is_some() {
+                    ui.colored_label(OK, "✔ dans le dossier");
+                } else if l4t_done {
+                    ui.colored_label(OK, "✔ téléchargés");
                 } else {
                     ui.weak("à télécharger chez NVIDIA");
                 }
@@ -353,7 +350,8 @@ impl App {
         self.driver_row(ui);
         ui.add_space(10.0);
 
-        if !is_local || !l4t_done {
+        let needs_license = !(is_local && r.local_l4t().is_some());
+        if needs_license {
             ui.horizontal(|ui| {
                 ui.add_enabled(
                     !busy,
@@ -416,7 +414,7 @@ impl App {
                 ui.colored_label(WARN, "Ce dossier n'a pas tous les fichiers de la release.");
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let ok = ready && !busy && ((is_local && r.local_l4t().is_some()) || self.license);
+                let ok = ready && !busy && r.image().is_some() && (!needs_license || self.license);
                 if ui.add_enabled(ok, egui::Button::new("Suivant")).clicked() {
                     self.step = Step::Account;
                 }
@@ -525,6 +523,11 @@ impl App {
             }
         }
         ui.add_space(12.0);
+        ui.checkbox(
+            &mut self.verify_flash,
+            "Vérifier le flash par relecture de l'eMMC (plus lent, +5 à 10 min)",
+        );
+        ui.add_space(6.0);
         let confirm_label = if self.account.move_to_nvme {
             "Je confirme l'effacement de la partition système de l'eMMC et du SSD NVMe (sauvegarde boot eMMC faite avant)"
         } else {
@@ -549,6 +552,7 @@ impl App {
                                 cache: self.cache.clone(),
                                 release: r,
                                 firstboot_conf: conf,
+                                verify_flash: self.verify_flash,
                             };
                             self.run = Some(install::start(plan, ui.ctx().clone()));
                             self.step = Step::Install;
@@ -574,6 +578,7 @@ impl App {
                         ui.label(*name)
                     }
                     install::State::Done => ui.colored_label(OK, format!("✔  {name}")),
+                    install::State::Skipped => ui.weak(format!("–  {name} (ignorée)")),
                     install::State::Failed => ui.colored_label(ERR, format!("✖  {name}")),
                 };
             });
